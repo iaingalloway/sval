@@ -1,0 +1,7 @@
+name: good
+type: ok
+count: 1
+---
+name: bad
+type: ok
+count: not-a-number

@@ -1,0 +1,5 @@
+name: doc1
+value: 1
+---
+name: doc2
+value: not-a-number
