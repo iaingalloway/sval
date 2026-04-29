@@ -429,149 +429,149 @@ func TestValidateCommandFailFastJSON(t *testing.T) {
 // configWithOneInvalidOneValid sets up a config dir with one valid and one
 // invalid file matched by a single rule, returning the config path.
 func configWithOneInvalidOneValid(t *testing.T) string {
-t.Helper()
-dir := t.TempDir()
-schemaPath := filepath.Join(dir, "schema.json")
-configPath := filepath.Join(dir, ".svalconfig.yaml")
-writeConfigTestFile(t, schemaPath, `{"type":"object","required":["name"],"properties":{"name":{"type":"string"}}}`)
-writeConfigTestFile(t, filepath.Join(dir, "data", "good.yaml"), "name: ok\n")
-writeConfigTestFile(t, filepath.Join(dir, "data", "bad.yaml"), "missing: 1\n")
-writeConfigTestFile(t, configPath, "rules:\n  - pattern: \"data/**/*.yaml\"\n    schema: \"schema.json\"\n")
-return configPath
+	t.Helper()
+	dir := t.TempDir()
+	schemaPath := filepath.Join(dir, "schema.json")
+	configPath := filepath.Join(dir, ".svalconfig.yaml")
+	writeConfigTestFile(t, schemaPath, `{"type":"object","required":["name"],"properties":{"name":{"type":"string"}}}`)
+	writeConfigTestFile(t, filepath.Join(dir, "data", "good.yaml"), "name: ok\n")
+	writeConfigTestFile(t, filepath.Join(dir, "data", "bad.yaml"), "missing: 1\n")
+	writeConfigTestFile(t, configPath, "rules:\n  - pattern: \"data/**/*.yaml\"\n    schema: \"schema.json\"\n")
+	return configPath
 }
 
 func runValidate(t *testing.T, args ...string) (stdout, stderr string, err error) {
-t.Helper()
-root := newRootCmd("dev")
-root.SetArgs(append([]string{"validate"}, args...))
-var out, errOut bytes.Buffer
-root.SetOut(&out)
-root.SetErr(&errOut)
-err = root.Execute()
-return out.String(), errOut.String(), err
+	t.Helper()
+	root := newRootCmd("dev")
+	root.SetArgs(append([]string{"validate"}, args...))
+	var out, errOut bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	err = root.Execute()
+	return out.String(), errOut.String(), err
 }
 
 func TestValidateVerbosityQuiet(t *testing.T) {
-configPath := configWithOneInvalidOneValid(t)
-out, errOut, err := runValidate(t, "--config", configPath, "--quiet")
-if err == nil {
-t.Fatal("expected error for invalid file")
-}
-if out != "" {
-t.Fatalf("expected empty stdout, got: %q", out)
-}
-if errOut != "" {
-t.Fatalf("expected empty stderr, got: %q", errOut)
-}
+	configPath := configWithOneInvalidOneValid(t)
+	out, errOut, err := runValidate(t, "--config", configPath, "--quiet")
+	if err == nil {
+		t.Fatal("expected error for invalid file")
+	}
+	if out != "" {
+		t.Fatalf("expected empty stdout, got: %q", out)
+	}
+	if errOut != "" {
+		t.Fatalf("expected empty stderr, got: %q", errOut)
+	}
 }
 
 func TestValidateVerbositySummary(t *testing.T) {
-configPath := configWithOneInvalidOneValid(t)
-out, errOut, err := runValidate(t, "--config", configPath, "--summary")
-if err == nil {
-t.Fatal("expected error for invalid file")
-}
-if errOut != "" {
-t.Fatalf("expected empty stderr at summary level, got: %q", errOut)
-}
-if !strings.Contains(out, "Validated 2 file(s), skipped 0, failed 1.") {
-t.Fatalf("expected aggregate with failed count, got stdout: %q", out)
-}
+	configPath := configWithOneInvalidOneValid(t)
+	out, errOut, err := runValidate(t, "--config", configPath, "--summary")
+	if err == nil {
+		t.Fatal("expected error for invalid file")
+	}
+	if errOut != "" {
+		t.Fatalf("expected empty stderr at summary level, got: %q", errOut)
+	}
+	if !strings.Contains(out, "Validated 2 file(s), skipped 0, failed 1.") {
+		t.Fatalf("expected aggregate with failed count, got stdout: %q", out)
+	}
 }
 
 func TestValidateVerbosityVerbose(t *testing.T) {
-configPath := configWithOneInvalidOneValid(t)
-out, errOut, err := runValidate(t, "--config", configPath, "--verbose")
-if err == nil {
-t.Fatal("expected error for invalid file")
-}
-if !strings.Contains(out, "OK: ") {
-t.Fatalf("expected an OK line on stdout, got: %q", out)
-}
-if !strings.Contains(errOut, "pattern \"data/**/*.yaml\" matched") {
-t.Fatalf("expected per-rule pattern info on stderr, got: %q", errOut)
-}
-if !strings.Contains(out, "failed 1") {
-t.Fatalf("expected aggregate with failed count, got stdout: %q", out)
-}
+	configPath := configWithOneInvalidOneValid(t)
+	out, errOut, err := runValidate(t, "--config", configPath, "--verbose")
+	if err == nil {
+		t.Fatal("expected error for invalid file")
+	}
+	if !strings.Contains(out, "OK: ") {
+		t.Fatalf("expected an OK line on stdout, got: %q", out)
+	}
+	if !strings.Contains(errOut, "pattern \"data/**/*.yaml\" matched") {
+		t.Fatalf("expected per-rule pattern info on stderr, got: %q", errOut)
+	}
+	if !strings.Contains(out, "failed 1") {
+		t.Fatalf("expected aggregate with failed count, got stdout: %q", out)
+	}
 }
 
 func TestValidateVerbosityDiag(t *testing.T) {
-configPath := configWithOneInvalidOneValid(t)
-out, errOut, err := runValidate(t, "--config", configPath, "--diag")
-if err == nil {
-t.Fatal("expected error for invalid file")
-}
-if !strings.Contains(errOut, "diag: config: ") {
-t.Fatalf("expected diag config line on stderr, got: %q", errOut)
-}
-if !strings.Contains(out, "OK: ") {
-t.Fatalf("expected diag to include verbose OK lines on stdout, got: %q", out)
-}
+	configPath := configWithOneInvalidOneValid(t)
+	out, errOut, err := runValidate(t, "--config", configPath, "--diag")
+	if err == nil {
+		t.Fatal("expected error for invalid file")
+	}
+	if !strings.Contains(errOut, "diag: config: ") {
+		t.Fatalf("expected diag config line on stderr, got: %q", errOut)
+	}
+	if !strings.Contains(out, "OK: ") {
+		t.Fatalf("expected diag to include verbose OK lines on stdout, got: %q", out)
+	}
 }
 
 func TestValidateVerbosityDiagnosticAlias(t *testing.T) {
-configPath := configWithOneInvalidOneValid(t)
-_, errOut, err := runValidate(t, "--config", configPath, "--diagnostic")
-if err == nil {
-t.Fatal("expected error for invalid file")
-}
-if !strings.Contains(errOut, "diag: config: ") {
-t.Fatalf("--diagnostic should behave like --diag, got stderr: %q", errOut)
-}
+	configPath := configWithOneInvalidOneValid(t)
+	_, errOut, err := runValidate(t, "--config", configPath, "--diagnostic")
+	if err == nil {
+		t.Fatal("expected error for invalid file")
+	}
+	if !strings.Contains(errOut, "diag: config: ") {
+		t.Fatalf("--diagnostic should behave like --diag, got stderr: %q", errOut)
+	}
 }
 
 func TestValidateVerbosityFlagExplicit(t *testing.T) {
-configPath := configWithOneInvalidOneValid(t)
-out, _, err := runValidate(t, "--config", configPath, "--verbosity", "summary")
-if err == nil {
-t.Fatal("expected error for invalid file")
-}
-if !strings.Contains(out, "failed 1") {
-t.Fatalf("expected --verbosity summary to print aggregate, got stdout: %q", out)
-}
+	configPath := configWithOneInvalidOneValid(t)
+	out, _, err := runValidate(t, "--config", configPath, "--verbosity", "summary")
+	if err == nil {
+		t.Fatal("expected error for invalid file")
+	}
+	if !strings.Contains(out, "failed 1") {
+		t.Fatalf("expected --verbosity summary to print aggregate, got stdout: %q", out)
+	}
 }
 
 func TestValidateVerbosityShortcutsExclusive(t *testing.T) {
-configPath := configWithOneInvalidOneValid(t)
-_, _, err := runValidate(t, "--config", configPath, "--quiet", "--verbose")
-if err == nil {
-t.Fatal("expected error combining --quiet and --verbose")
-}
-if !strings.Contains(err.Error(), "at most one of") {
-t.Fatalf("unexpected error: %v", err)
-}
+	configPath := configWithOneInvalidOneValid(t)
+	_, _, err := runValidate(t, "--config", configPath, "--quiet", "--verbose")
+	if err == nil {
+		t.Fatal("expected error combining --quiet and --verbose")
+	}
+	if !strings.Contains(err.Error(), "at most one of") {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 func TestValidateVerbosityFlagAndShortcutExclusive(t *testing.T) {
-configPath := configWithOneInvalidOneValid(t)
-_, _, err := runValidate(t, "--config", configPath, "--verbosity", "verbose", "--quiet")
-if err == nil {
-t.Fatal("expected error combining --verbosity and --quiet")
-}
-if !strings.Contains(err.Error(), "cannot be combined") {
-t.Fatalf("unexpected error: %v", err)
-}
+	configPath := configWithOneInvalidOneValid(t)
+	_, _, err := runValidate(t, "--config", configPath, "--verbosity", "verbose", "--quiet")
+	if err == nil {
+		t.Fatal("expected error combining --verbosity and --quiet")
+	}
+	if !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 func TestValidateJSONExclusiveWithVerbosity(t *testing.T) {
-configPath := configWithOneInvalidOneValid(t)
-_, _, err := runValidate(t, "--config", configPath, "--json", "--quiet")
-if err == nil {
-t.Fatal("expected error combining --json and --quiet")
-}
-if !strings.Contains(err.Error(), "--json cannot be combined") {
-t.Fatalf("unexpected error: %v", err)
-}
+	configPath := configWithOneInvalidOneValid(t)
+	_, _, err := runValidate(t, "--config", configPath, "--json", "--quiet")
+	if err == nil {
+		t.Fatal("expected error combining --json and --quiet")
+	}
+	if !strings.Contains(err.Error(), "--json cannot be combined") {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 func TestValidateVerbosityInvalidValue(t *testing.T) {
-configPath := configWithOneInvalidOneValid(t)
-_, _, err := runValidate(t, "--config", configPath, "--verbosity", "loud")
-if err == nil {
-t.Fatal("expected error for invalid verbosity")
-}
-if !strings.Contains(err.Error(), "invalid --verbosity") {
-t.Fatalf("unexpected error: %v", err)
-}
+	configPath := configWithOneInvalidOneValid(t)
+	_, _, err := runValidate(t, "--config", configPath, "--verbosity", "loud")
+	if err == nil {
+		t.Fatal("expected error for invalid verbosity")
+	}
+	if !strings.Contains(err.Error(), "invalid --verbosity") {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }

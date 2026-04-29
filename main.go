@@ -11,10 +11,15 @@ import (
 var version = "dev"
 
 func main() {
-	if err := cmd.Execute(version); err != nil {
-		if !errors.Is(err, cmd.ErrSilent) {
-			fmt.Fprintln(os.Stderr, err)
-		}
+	err := cmd.Execute(version)
+	if err == nil {
+		return
+	}
+	if errors.Is(err, cmd.ErrSilent) {
+		// Validation failure: per-file diagnostics already printed.
 		os.Exit(1)
 	}
+	// Usage, configuration, or system error.
+	fmt.Fprintln(os.Stderr, err)
+	os.Exit(2)
 }

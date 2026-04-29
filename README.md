@@ -52,7 +52,7 @@ It does **not** validate Markdown body content.
 - CLI ergonomics
   - [x] fail-fast mode (`--fail-fast`)
   - [x] verbosity control (`--verbosity`, and shortcuts for `--quiet` / `--verbose` / `--summary` / `--diag`)
-  - [ ] stable exit codes for CI
+  - [x] stable exit codes for CI
 - Git integration
   - [ ] validate changed files (--changed)
   - [ ] validate staged files (--staged)
