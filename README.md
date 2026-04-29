@@ -50,16 +50,15 @@ It does **not** validate Markdown body content.
   - [x] Local $ref resolution (relative to schema file)
   - [x] Remote $ref resolution
 - CLI ergonomics
-  - [x] fail-fast mode (`--fail-fast`)
-  - [x] verbosity control (`--verbosity`, and shortcuts for `--quiet` / `--verbose` / `--summary` / `--diag`)
-  - [x] stable exit codes for CI
+  - [x] Fail-fast mode (`--fail-fast`)
+  - [x] Verbosity control (`--verbosity`, and shortcuts for `--quiet` / `--verbose` / `--summary` / `--diag`)
+  - [x] Stable exit codes for CI
 - Git integration
-  - [ ] validate changed files (--changed)
-  - [ ] validate staged files (--staged)
-  - [ ] Option to ignore files ignored by .gitignore
-- Dev workflow
-  - [ ] watch mode for local development
+  - [x] Validate changed files (--changed)
+  - [x] Validate staged files (--staged)
 - Future features
+  - [ ] Watch mode for local development
+  - [ ] Option to ignore files ignored by .gitignore
   - [ ] Schema bundling/caching
 
 ## Examples
@@ -68,6 +67,44 @@ Validate a single file against a schema:
 
 ```bash
 sval validate ./path/to/file --schema ./path/to/schema.json
+```
+
+## Git integration
+
+When run inside a git working tree, Sval can pick up files to validate from git itself. The selected files are filtered through your config's rules (files with no matching rule are skipped).
+
+Validate everything changed in the working tree (modified + untracked, vs `HEAD`):
+
+```bash
+sval validate --changed
+```
+
+Compare against a different base, or exclude untracked files:
+
+```bash
+sval validate --changed --base main
+sval validate --changed --no-untracked
+```
+
+Validate everything staged in the index:
+
+```bash
+sval validate --staged
+```
+
+> `--staged` validates the **on-disk** content of staged files, not the indexed blob. If you have unstaged edits to a staged file, those will be seen too. For strict pre-commit checks, wrap the call with `git stash --keep-index` / `git stash pop`, or use the positional-args recipe below.
+
+### Pre-commit hook
+
+For use with [pre-commit](https://pre-commit.com/) or other similar tools, prefer passing the staged file list as positional arguments - pre-commit already isolates the indexed content for you:
+
+```yaml
+# .pre-commit-hooks.yaml
+- id: sval
+  name: sval
+  entry: sval validate
+  language: system
+  pass_filenames: true
 ```
 
 ## Configuration

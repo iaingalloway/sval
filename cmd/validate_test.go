@@ -45,7 +45,7 @@ func TestValidateCommandSchemaWithoutFile(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when --schema given without a file argument")
 	}
-	if !strings.Contains(err.Error(), "exactly one file argument") {
+	if !strings.Contains(err.Error(), "at least one file argument") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -573,5 +573,109 @@ func TestValidateVerbosityInvalidValue(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "invalid --verbosity") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateFileArgsConfigModeMatched(t *testing.T) {
+	dir := t.TempDir()
+	schemaPath := filepath.Join(dir, "schema.json")
+	dataPath := filepath.Join(dir, "data", "note.yaml")
+	configPath := filepath.Join(dir, ".svalconfig.yaml")
+
+	writeConfigTestFile(t, schemaPath, `{"type":"object","required":["name"],"properties":{"name":{"type":"string"}}}`)
+	writeConfigTestFile(t, dataPath, "name: ok\n")
+	writeConfigTestFile(t, configPath, "rules:\n  - pattern: \"data/**/*.yaml\"\n    schema: \"schema.json\"\n")
+
+	out, _, err := runValidate(t, "--config", configPath, dataPath)
+	if err != nil {
+		t.Fatalf("expected success, got error: %v", err)
+	}
+	if !strings.Contains(out, "Validated 1 file(s), skipped 0") {
+		t.Fatalf("expected aggregate, got stdout: %q", out)
+	}
+}
+
+func TestValidateFileArgsConfigModeNoRule(t *testing.T) {
+	dir := t.TempDir()
+	schemaPath := filepath.Join(dir, "schema.json")
+	dataPath := filepath.Join(dir, "elsewhere", "note.yaml")
+	configPath := filepath.Join(dir, ".svalconfig.yaml")
+
+	writeConfigTestFile(t, schemaPath, `{"type":"object"}`)
+	writeConfigTestFile(t, dataPath, "name: ok\n")
+	// rule only matches data/**, dataPath is in elsewhere/
+	writeConfigTestFile(t, configPath, "rules:\n  - pattern: \"data/**/*.yaml\"\n    schema: \"schema.json\"\n")
+
+	out, errOut, err := runValidate(t, "--config", configPath, "--diag", dataPath)
+	if err != nil {
+		t.Fatalf("expected success (no-rule files are skipped), got: %v", err)
+	}
+	if !strings.Contains(errOut, "diag: no rule matched: ") {
+		t.Fatalf("expected no-rule diag line on stderr, got: %q", errOut)
+	}
+	if !strings.Contains(out, "Validated 0 file(s), skipped 1") {
+		t.Fatalf("expected aggregate showing 1 skipped, got stdout: %q", out)
+	}
+}
+
+func TestValidateFileArgsConfigModeFailFast(t *testing.T) {
+	dir := t.TempDir()
+	schemaPath := filepath.Join(dir, "schema.json")
+	configPath := filepath.Join(dir, ".svalconfig.yaml")
+	a := filepath.Join(dir, "data", "a.yaml")
+	b := filepath.Join(dir, "data", "b.yaml")
+
+	writeConfigTestFile(t, schemaPath, `{"type":"object","required":["name"],"properties":{"name":{"type":"string"}}}`)
+	writeConfigTestFile(t, a, "bad: 1\n")
+	writeConfigTestFile(t, b, "bad: 2\n")
+	writeConfigTestFile(t, configPath, "rules:\n  - pattern: \"data/**/*.yaml\"\n    schema: \"schema.json\"\n")
+
+	_, errOut, err := runValidate(t, "--config", configPath, "--fail-fast", a, b)
+	if err == nil {
+		t.Fatal("expected error for invalid files")
+	}
+	// With fail-fast only one error message should be printed.
+	if got := strings.Count(errOut, "name"); got != 1 {
+		t.Fatalf("expected exactly 1 error with --fail-fast, got %d:\n%s", got, errOut)
+	}
+}
+
+func TestValidateFileArgsConfigModeIgnored(t *testing.T) {
+	dir := t.TempDir()
+	schemaPath := filepath.Join(dir, "schema.json")
+	configPath := filepath.Join(dir, ".svalconfig.yaml")
+	ignored := filepath.Join(dir, "vendor", "note.yaml")
+
+	writeConfigTestFile(t, schemaPath, `{"type":"object","required":["name"],"properties":{"name":{"type":"string"}}}`)
+	writeConfigTestFile(t, ignored, "bad: 1\n")
+	writeConfigTestFile(t, configPath, "rules:\n  - pattern: \"{data,vendor}/**/*.yaml\"\n    schema: \"schema.json\"\nignore:\n  - \"vendor/**\"\n")
+
+	out, _, err := runValidate(t, "--config", configPath, ignored)
+	if err != nil {
+		t.Fatalf("expected success (file is ignored), got: %v", err)
+	}
+	if !strings.Contains(out, "Validated 0 file(s), skipped 1") {
+		t.Fatalf("expected aggregate showing 1 skipped, got stdout: %q", out)
+	}
+}
+
+func TestValidateFileArgsAutoDiscovery(t *testing.T) {
+	dir := t.TempDir()
+	schemaPath := filepath.Join(dir, "schema.json")
+	configPath := filepath.Join(dir, ".svalconfig.yaml")
+	dataPath := filepath.Join(dir, "data", "note.yaml")
+
+	writeConfigTestFile(t, schemaPath, `{"type":"object","required":["name"],"properties":{"name":{"type":"string"}}}`)
+	writeConfigTestFile(t, dataPath, "name: ok\n")
+	writeConfigTestFile(t, configPath, "rules:\n  - pattern: \"data/**/*.yaml\"\n    schema: \"schema.json\"\n")
+
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir) //nolint:errcheck
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	if _, _, err := runValidate(t, dataPath); err != nil {
+		t.Fatalf("expected auto-discovered config + file arg to succeed, got: %v", err)
 	}
 }

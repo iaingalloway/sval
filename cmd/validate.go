@@ -61,6 +61,11 @@ func NewValidateCmd() *cobra.Command {
 		verboseFlag   bool
 		diagFlag      bool
 		diagAliasFlag bool
+
+		changedFlag     bool
+		stagedFlag      bool
+		baseFlag        string
+		noUntrackedFlag bool
 	)
 
 	cmd := &cobra.Command{
@@ -70,6 +75,22 @@ func NewValidateCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if schemaPath != "" && (configPath != "" || configFromVSCode) {
 				return fmt.Errorf("--schema cannot be combined with --config or --config-from-vscode")
+			}
+
+			if changedFlag && stagedFlag {
+				return fmt.Errorf("--changed and --staged cannot be combined")
+			}
+			if (changedFlag || stagedFlag) && schemaPath != "" {
+				return fmt.Errorf("--changed / --staged cannot be combined with --schema")
+			}
+			if (changedFlag || stagedFlag) && len(args) > 0 {
+				return fmt.Errorf("--changed / --staged cannot be combined with positional file arguments")
+			}
+			if baseFlag != "" && !changedFlag {
+				return fmt.Errorf("--base requires --changed")
+			}
+			if noUntrackedFlag && !changedFlag {
+				return fmt.Errorf("--no-untracked requires --changed")
 			}
 
 			level, err := resolveVerbosity(verbosityFlag, quietFlag, summaryFlag, verboseFlag, diagFlag || diagAliasFlag)
@@ -83,10 +104,10 @@ func NewValidateCmd() *cobra.Command {
 			rep := newReporter(cmd.OutOrStdout(), cmd.ErrOrStderr(), level, jsonOutput)
 
 			if schemaPath != "" {
-				if len(args) != 1 {
-					return fmt.Errorf("validate requires exactly one file argument when --schema is used")
+				if len(args) == 0 {
+					return fmt.Errorf("validate requires at least one file argument when --schema is used")
 				}
-				return runSingleFile(rep, args[0], schemaPath)
+				return runFileList(rep, args, schemaPath, nil, "", failFast)
 			}
 
 			cfg, cfgDir, cfgPath, err := resolveConfig(configPath, configFromVSCode)
@@ -94,6 +115,32 @@ func NewValidateCmd() *cobra.Command {
 				return err
 			}
 			rep.diag("config: %s", cfgPath)
+
+			if changedFlag || stagedFlag {
+				cwd, err := os.Getwd()
+				if err != nil {
+					return fmt.Errorf("get working directory: %w", err)
+				}
+				var files []string
+				if changedFlag {
+					base := baseFlag
+					if base == "" {
+						base = "HEAD"
+					}
+					files, err = gitChangedFiles(cwd, base, !noUntrackedFlag)
+				} else {
+					files, err = gitStagedFiles(cwd)
+				}
+				if err != nil {
+					return err
+				}
+				rep.diag("git: %d candidate file(s)", len(files))
+				return runFileList(rep, files, "", cfg, cfgDir, failFast)
+			}
+
+			if len(args) > 0 {
+				return runFileList(rep, args, "", cfg, cfgDir, failFast)
+			}
 			return runUsingConfig(rep, cfg, cfgDir, failFast)
 		},
 	}
@@ -110,6 +157,11 @@ func NewValidateCmd() *cobra.Command {
 	cmd.Flags().BoolVarP(&verboseFlag, "verbose", "v", false, "also print OK lines and per-rule expansion (shortcut for --verbosity verbose)")
 	cmd.Flags().BoolVar(&diagFlag, "diag", false, "verbose plus diagnostic info (shortcut for --verbosity diag)")
 	cmd.Flags().BoolVar(&diagAliasFlag, "diagnostic", false, "alias for --diag")
+
+	cmd.Flags().BoolVar(&changedFlag, "changed", false, "validate files changed in the working tree (requires git)")
+	cmd.Flags().BoolVar(&stagedFlag, "staged", false, "validate files staged in the index (requires git; on-disk content)")
+	cmd.Flags().StringVar(&baseFlag, "base", "", "base ref for --changed (default HEAD)")
+	cmd.Flags().BoolVar(&noUntrackedFlag, "no-untracked", false, "with --changed, exclude untracked files")
 
 	return cmd
 }
@@ -147,15 +199,47 @@ func resolveVerbosity(s string, quiet, summary, verbose, diag bool) (verbosity, 
 	}
 }
 
-// runSingleFile validates one file against one explicitly-supplied schema.
-func runSingleFile(rep *reporter, filePath, schemaPath string) error {
-	failed := validateFile(rep, filePath, schemaPath)
-	if failed {
-		rep.summary(0, 0, 1)
+// runFileList validates an explicit list of files. If schemaPath is non-empty
+// ("--schema mode"), every file is validated against that schema. Otherwise
+// each file's schema is looked up in cfg via matchRule, and files matching no
+// rule are skipped with a diag message. Ignore patterns from cfg are applied
+// when cfg is non-nil.
+func runFileList(rep *reporter, files []string, schemaPath string, cfg *config.Config, cfgDir string, failFast bool) error {
+	c := &runCounters{seen: make(map[string]struct{})}
+
+	for _, f := range files {
+		abs, err := filepath.Abs(f)
+		if err != nil {
+			return err
+		}
+		if _, dup := c.seen[abs]; dup {
+			continue
+		}
+		c.seen[abs] = struct{}{}
+
+		schema := schemaPath
+		var ignore []string
+		if cfg != nil {
+			var ok bool
+			schema, ok = matchRule(cfg, cfgDir, abs)
+			if !ok {
+				c.skipped++
+				rep.diag("no rule matched: %s", abs)
+				continue
+			}
+			ignore = cfg.Ignore
+		}
+
+		if validateCandidate(rep, c, abs, schema, ignore, cfgDir, failFast) {
+			rep.summary(c.validated, c.skipped, c.failed)
+			return ErrSilent
+		}
+	}
+
+	rep.summary(c.validated, c.skipped, c.failed)
+	if c.failed > 0 {
 		return ErrSilent
 	}
-	rep.fileOK(filePath)
-	rep.singleFileSuccess()
 	return nil
 }
 
@@ -206,10 +290,7 @@ func resolveConfig(configFlag string, fromVSCode bool) (*config.Config, string, 
 
 // runUsingConfig expands each rule's glob pattern, filters ignored files, and validates.
 func runUsingConfig(rep *reporter, cfg *config.Config, cfgDir string, failFast bool) error {
-	seen := make(map[string]struct{})
-	validated := 0
-	skipped := 0
-	failed := 0
+	c := &runCounters{seen: make(map[string]struct{})}
 
 	for _, rule := range cfg.Rules {
 		pattern := resolveRel(cfgDir, rule.Pattern)
@@ -226,41 +307,67 @@ func runUsingConfig(rep *reporter, cfg *config.Config, cfgDir string, failFast b
 			if err != nil {
 				return err
 			}
-			if _, dup := seen[abs]; dup {
+			if _, dup := c.seen[abs]; dup {
 				continue
 			}
-			seen[abs] = struct{}{}
+			c.seen[abs] = struct{}{}
 
-			if isIgnoredByConfig(abs, cfg.Ignore, cfgDir) {
-				skipped++
-				rep.diag("ignored: %s", abs)
-				continue
-			}
-
-			if validator.DetectFileType(abs) == validator.FileTypeUnknown {
-				skipped++
-				rep.diag("unknown file type, skipping: %s", abs)
-				continue
-			}
-
-			validated++
-			if validateFile(rep, abs, schemaPath) {
-				failed++
-				if failFast {
-					rep.summary(validated, skipped, failed)
-					return ErrSilent
-				}
-			} else {
-				rep.fileOK(abs)
+			if validateCandidate(rep, c, abs, schemaPath, cfg.Ignore, cfgDir, failFast) {
+				rep.summary(c.validated, c.skipped, c.failed)
+				return ErrSilent
 			}
 		}
 	}
 
-	rep.summary(validated, skipped, failed)
-	if failed > 0 {
+	rep.summary(c.validated, c.skipped, c.failed)
+	if c.failed > 0 {
 		return ErrSilent
 	}
 	return nil
+}
+
+// runCounters tracks per-run aggregates and the dedup set across rule patterns
+// or input files.
+type runCounters struct {
+	seen      map[string]struct{}
+	validated int
+	skipped   int
+	failed    int
+}
+
+// validateCandidate applies the ignore filter and file-type check to a single
+// already-deduped absolute path, then validates if it survives. Counters are
+// mutated in place. Returns true iff fail-fast should stop the loop.
+func validateCandidate(rep *reporter, c *runCounters, abs, schemaPath string, ignore []string, cfgDir string, failFast bool) bool {
+	if isIgnoredByConfig(abs, ignore, cfgDir) {
+		c.skipped++
+		rep.diag("ignored: %s", abs)
+		return false
+	}
+	if validator.DetectFileType(abs) == validator.FileTypeUnknown {
+		c.skipped++
+		rep.diag("unknown file type, skipping: %s", abs)
+		return false
+	}
+	c.validated++
+	if validateFile(rep, abs, schemaPath) {
+		c.failed++
+		return failFast
+	}
+	rep.fileOK(abs)
+	return false
+}
+
+// matchRule returns the resolved schema path of the first rule in cfg whose
+// pattern matches absPath, or ("", false) if none do.
+func matchRule(cfg *config.Config, cfgDir, absPath string) (string, bool) {
+	for _, rule := range cfg.Rules {
+		pattern := resolveRel(cfgDir, rule.Pattern)
+		if ok, err := doublestar.Match(pattern, absPath); err == nil && ok {
+			return resolveRel(cfgDir, rule.Schema), true
+		}
+	}
+	return "", false
 }
 
 func isIgnoredByConfig(absPath string, patterns []string, cfgDir string) bool {
@@ -364,14 +471,6 @@ func (r *reporter) summary(validated, skipped, failed int) {
 		return
 	}
 	fmt.Fprintf(r.out, "Validated %d file(s), skipped %d. All files are valid.\n", validated, skipped)
-}
-
-// singleFileSuccess emits the single-file success line. Summary+ only.
-func (r *reporter) singleFileSuccess() {
-	if r.json || r.level < verbositySummary {
-		return
-	}
-	fmt.Fprintln(r.out, "Validated 1 file. All files are valid.")
 }
 
 // jsonResult writes a single validator result as one NDJSON line.
