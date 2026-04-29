@@ -51,9 +51,8 @@ It does **not** validate Markdown body content.
   - [x] Remote $ref resolution
 - CLI ergonomics
   - [x] fail-fast mode (`--fail-fast`)
-  - [ ] summary mode
+  - [x] verbosity control (`--verbosity`, and shortcuts for `--quiet` / `--verbose` / `--summary` / `--diag`)
   - [ ] stable exit codes for CI
-  - [ ] verbosity control (--quiet / --verbose)
 - Git integration
   - [ ] validate changed files (--changed)
   - [ ] validate staged files (--staged)
