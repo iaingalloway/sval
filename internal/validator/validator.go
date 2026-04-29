@@ -3,8 +3,10 @@ package validator
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
@@ -140,13 +142,44 @@ func DetectFileType(path string) FileType {
 	}
 }
 
-func loadSchema(path string) (*jsonschema.Schema, error) {
-	abs, err := filepath.Abs(path)
+type httpURLLoader http.Client
+
+func (l *httpURLLoader) Load(url string) (any, error) {
+	client := (*http.Client)(l)
+	resp, err := client.Get(url) //nolint:noctx
 	if err != nil {
 		return nil, err
 	}
+	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("%s returned status code %d", url, resp.StatusCode)
+	}
+	defer resp.Body.Close()
+	return jsonschema.UnmarshalJSON(resp.Body)
+}
+
+func newCompiler() *jsonschema.Compiler {
+	httpLoader := (*httpURLLoader)(&http.Client{Timeout: 15 * time.Second})
 	c := jsonschema.NewCompiler()
-	schema, err := c.Compile("file://" + abs)
+	c.UseLoader(jsonschema.SchemeURLLoader{
+		"file":  jsonschema.FileLoader{},
+		"http":  httpLoader,
+		"https": httpLoader,
+	})
+	return c
+}
+
+func loadSchema(path string) (*jsonschema.Schema, error) {
+	c := newCompiler()
+	loc := path
+	if !strings.HasPrefix(path, "http://") && !strings.HasPrefix(path, "https://") {
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return nil, err
+		}
+		loc = "file://" + abs
+	}
+	schema, err := c.Compile(loc)
 	if err != nil {
 		// Surface "no such file" errors directly; wrap compile errors with context.
 		return nil, fmt.Errorf("parse schema: %v", err)

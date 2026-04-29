@@ -2,6 +2,8 @@ package validator
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -260,6 +262,26 @@ func TestValidatePath(t *testing.T) {
 		err := ValidatePath(fixturePath("yaml", "bad-multi.yaml"), schemaPath)
 		if err == nil {
 			t.Fatal("expected validation error via $ref schema, got nil")
+		}
+	})
+
+	t.Run("schema loaded from http URL", func(t *testing.T) {
+		schemaBytes, err := os.ReadFile(fixturePath("schema", "valid-object.json"))
+		if err != nil {
+			t.Fatalf("reading fixture: %v", err)
+		}
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(schemaBytes)
+		}))
+		defer srv.Close()
+
+		if err := ValidatePath(fixturePath("yaml", "good.yaml"), srv.URL+"/schema.json"); err != nil {
+			t.Fatalf("expected validation to pass, got: %v", err)
+		}
+		err = ValidatePath(fixturePath("yaml", "bad-multi.yaml"), srv.URL+"/schema.json")
+		if err == nil {
+			t.Fatal("expected validation error, got nil")
 		}
 	})
 

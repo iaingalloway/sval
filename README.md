@@ -48,11 +48,9 @@ It does **not** validate Markdown body content.
   - [x] Ignore support (config `ignore` patterns, no `.gitignore` reading)
 - Schema handling
   - [x] Local $ref resolution (relative to schema file)
-  - [ ] Remote $ref resolution
-  - [ ] Schema bundling/caching
+  - [x] Remote $ref resolution
 - CLI ergonomics
   - [ ] stdin support
-  - [ ] validate specific files, globs, or entire repo
   - [ ] fail-fast and summary modes
   - [ ] stable exit codes for CI
   - [ ] verbosity control (--quiet / --verbose)
@@ -62,6 +60,8 @@ It does **not** validate Markdown body content.
   - [ ] Option to ignore files ignored by .gitignore
 - Dev workflow
   - [ ] watch mode for local development
+- Future features
+  - [ ] Schema bundling/caching
 
 ## Examples
 
