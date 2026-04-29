@@ -24,5 +24,5 @@ run *args:
   go run main.go {{args}}
 
 # Run all tests in the project
-test:
-  go test ./...
+test *args:
+  go test ./... {{args}}
