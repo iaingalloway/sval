@@ -101,13 +101,13 @@ func NewValidateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&schemaPath, "schema", "", "path to JSON schema file (single-file mode)")
 	cmd.Flags().StringVar(&configPath, "config", "", "path to sval config file")
 	cmd.Flags().BoolVar(&configFromVSCode, "config-from-vscode", false, "load schema rules from .vscode/settings.json")
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output results as JSON")
+	cmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "output results as JSON")
 	cmd.Flags().BoolVar(&failFast, "fail-fast", false, "stop after the first validation failure")
 
 	cmd.Flags().StringVar(&verbosityFlag, "verbosity", "", "output level: quiet|summary|default|verbose|diag")
-	cmd.Flags().BoolVar(&quietFlag, "quiet", false, "no output; rely on exit code (shortcut for --verbosity quiet)")
+	cmd.Flags().BoolVarP(&quietFlag, "quiet", "q", false, "no output; rely on exit code (shortcut for --verbosity quiet)")
 	cmd.Flags().BoolVar(&summaryFlag, "summary", false, "only print the aggregate summary line (shortcut for --verbosity summary)")
-	cmd.Flags().BoolVar(&verboseFlag, "verbose", false, "also print OK lines and per-rule expansion (shortcut for --verbosity verbose)")
+	cmd.Flags().BoolVarP(&verboseFlag, "verbose", "v", false, "also print OK lines and per-rule expansion (shortcut for --verbosity verbose)")
 	cmd.Flags().BoolVar(&diagFlag, "diag", false, "verbose plus diagnostic info (shortcut for --verbosity diag)")
 	cmd.Flags().BoolVar(&diagAliasFlag, "diagnostic", false, "alias for --diag")
 
