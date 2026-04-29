@@ -14,12 +14,18 @@ import (
 	"sval/internal/validator"
 )
 
+// ErrSilent signals that the command failed but has already written its own
+// diagnostics. main.go uses errors.Is to suppress the default error print.
+var ErrSilent = errors.New("")
+
 func NewValidateCmd() *cobra.Command {
-	var schemaPath string
-	var configPath string
-	var configFromVSCode bool
-	var jsonOutput bool
-	var failFast bool
+	var (
+		schemaPath       string
+		configPath       string
+		configFromVSCode bool
+		jsonOutput       bool
+		failFast         bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "validate [file]",
@@ -34,14 +40,14 @@ func NewValidateCmd() *cobra.Command {
 				if len(args) != 1 {
 					return fmt.Errorf("validate requires exactly one file argument when --schema is used")
 				}
-				return runSchemaMode(cmd, args[0], schemaPath, jsonOutput)
+				return runSingleFile(cmd, args[0], schemaPath, jsonOutput)
 			}
 
 			cfg, cfgDir, err := resolveConfig(configPath, configFromVSCode)
 			if err != nil {
 				return err
 			}
-			return runConfigMode(cmd, cfg, cfgDir, jsonOutput, failFast)
+			return runUsingConfig(cmd, cfg, cfgDir, jsonOutput, failFast)
 		},
 	}
 
@@ -54,27 +60,13 @@ func NewValidateCmd() *cobra.Command {
 	return cmd
 }
 
-// runSchemaMode is the original single-file path: validate one file against one schema.
-func runSchemaMode(cmd *cobra.Command, filePath, schemaPath string, jsonOutput bool) error {
+// runSingleFile validates one file against one explicitly-supplied schema.
+func runSingleFile(cmd *cobra.Command, filePath, schemaPath string, jsonOutput bool) error {
+	if validateFile(cmd, filePath, schemaPath, jsonOutput) {
+		return ErrSilent
+	}
 	if !jsonOutput {
-		if err := validator.ValidatePath(filePath, schemaPath); err != nil {
-			return err
-		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Validated 1 file. All files are valid.\n")
-		return nil
-	}
-
-	result, err := validator.ValidatePathResult(filePath, schemaPath)
-	if err != nil {
-		out, _ := json.Marshal(map[string]string{"error": err.Error()})
-		fmt.Fprintln(cmd.OutOrStdout(), string(out))
-		return errors.New("")
-	}
-
-	out, _ := json.Marshal(result)
-	fmt.Fprintln(cmd.OutOrStdout(), string(out))
-	if !result.Valid {
-		return errors.New("")
+		fmt.Fprintln(cmd.OutOrStdout(), "Validated 1 file. All files are valid.")
 	}
 	return nil
 }
@@ -104,8 +96,8 @@ func resolveConfig(configFlag string, fromVSCode bool) (*config.Config, string, 
 		if err != nil {
 			return nil, "", fmt.Errorf("load vscode config: %w", err)
 		}
-		// FromVSCode already resolves all paths to absolute, so cfgDir is unused
-		// but set to cwd for any ignore patterns.
+		// FromVSCode resolves rule paths to absolute itself; cwd is returned
+		// as the base for resolving any relative ignore patterns.
 		return cfg, cwd, nil
 	}
 
@@ -123,20 +115,16 @@ func resolveConfig(configFlag string, fromVSCode bool) (*config.Config, string, 
 	return cfg, filepath.Dir(cfgPath), nil
 }
 
-// runConfigMode expands each rule's glob pattern, filters ignored files, and validates.
-func runConfigMode(cmd *cobra.Command, cfg *config.Config, cfgDir string, jsonOutput bool, failFast bool) error {
+// runUsingConfig expands each rule's glob pattern, filters ignored files, and validates.
+func runUsingConfig(cmd *cobra.Command, cfg *config.Config, cfgDir string, jsonOutput bool, failFast bool) error {
 	seen := make(map[string]struct{})
+	validated := 0
+	skipped := 0
 	anyInvalid := false
 
 	for _, rule := range cfg.Rules {
-		pattern := rule.Pattern
-		if !filepath.IsAbs(pattern) {
-			pattern = filepath.Join(cfgDir, pattern)
-		}
-		schemaPath := rule.Schema
-		if !filepath.IsAbs(schemaPath) {
-			schemaPath = filepath.Join(cfgDir, schemaPath)
-		}
+		pattern := resolveRel(cfgDir, rule.Pattern)
+		schemaPath := resolveRel(cfgDir, rule.Schema)
 
 		matches, err := doublestar.FilepathGlob(pattern)
 		if err != nil {
@@ -154,17 +142,19 @@ func runConfigMode(cmd *cobra.Command, cfg *config.Config, cfgDir string, jsonOu
 			seen[abs] = struct{}{}
 
 			if isIgnoredByConfig(abs, cfg.Ignore, cfgDir) {
+				skipped++
 				continue
 			}
 
 			if validator.DetectFileType(abs) == validator.FileTypeUnknown {
+				skipped++
 				continue
 			}
 
-			invalid := validateOne(cmd, abs, schemaPath, jsonOutput)
-			if invalid {
+			validated++
+			if validateFile(cmd, abs, schemaPath, jsonOutput) {
 				if failFast {
-					return errors.New("")
+					return ErrSilent
 				}
 				anyInvalid = true
 			}
@@ -172,45 +162,53 @@ func runConfigMode(cmd *cobra.Command, cfg *config.Config, cfgDir string, jsonOu
 	}
 
 	if anyInvalid {
-		return errors.New("")
+		return ErrSilent
 	}
 	if !jsonOutput {
-		fmt.Fprintf(cmd.OutOrStdout(), "Validated %d file(s). All files are valid.\n", len(seen))
+		fmt.Fprintf(cmd.OutOrStdout(), "Validated %d file(s), skipped %d. All files are valid.\n", validated, skipped)
 	}
 	return nil
 }
 
-// validateOne validates a single file and writes its result to the appropriate
-// stream. It returns true if the file was invalid (or could not be validated).
-func validateOne(cmd *cobra.Command, absPath, schemaPath string, jsonOutput bool) bool {
+func isIgnoredByConfig(absPath string, patterns []string, cfgDir string) bool {
+	for _, pattern := range patterns {
+		ok, err := doublestar.Match(resolveRel(cfgDir, pattern), absPath)
+		if err == nil && ok {
+			return true
+		}
+	}
+	return false
+}
+
+// validateFile validates a single file against a schema and writes its result
+// to the appropriate stream. Returns true if the file failed validation or
+// could not be validated due to a system error.
+func validateFile(cmd *cobra.Command, filePath, schemaPath string, jsonOutput bool) bool {
 	if jsonOutput {
-		result, err := validator.ValidatePathResult(absPath, schemaPath)
+		result, err := validator.ValidatePathResult(filePath, schemaPath)
 		if err != nil {
+			// json.Marshal of a map[string]string cannot fail.
 			out, _ := json.Marshal(map[string]string{"error": err.Error()})
 			fmt.Fprintln(cmd.OutOrStdout(), string(out))
 			return true
 		}
+		// json.Marshal of validator.Result cannot fail for the values we produce.
 		out, _ := json.Marshal(result)
 		fmt.Fprintln(cmd.OutOrStdout(), string(out))
 		return !result.Valid
 	}
 
-	if err := validator.ValidatePath(absPath, schemaPath); err != nil {
+	if err := validator.ValidatePath(filePath, schemaPath); err != nil {
 		fmt.Fprintln(cmd.ErrOrStderr(), err)
 		return true
 	}
 	return false
 }
 
-func isIgnoredByConfig(absPath string, patterns []string, cfgDir string) bool {
-	for _, pattern := range patterns {
-		if !filepath.IsAbs(pattern) {
-			pattern = filepath.Join(cfgDir, pattern)
-		}
-		ok, err := doublestar.Match(pattern, absPath)
-		if err == nil && ok {
-			return true
-		}
+// resolveRel returns p unchanged if it is absolute, otherwise joined onto base.
+func resolveRel(base, p string) string {
+	if filepath.IsAbs(p) {
+		return p
 	}
-	return false
+	return filepath.Join(base, p)
 }

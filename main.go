@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -11,7 +12,7 @@ var version = "dev"
 
 func main() {
 	if err := cmd.Execute(version); err != nil {
-		if err.Error() != "" {
+		if !errors.Is(err, cmd.ErrSilent) {
 			fmt.Fprintln(os.Stderr, err)
 		}
 		os.Exit(1)
