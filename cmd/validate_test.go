@@ -360,3 +360,66 @@ func TestValidateCommandConfigModeAutoDiscover(t *testing.T) {
 		t.Fatalf("expected auto-discovered config to succeed, got: %v", err)
 	}
 }
+
+func TestValidateCommandFailFast(t *testing.T) {
+	dir := t.TempDir()
+	schemaPath := filepath.Join(dir, "schema.json")
+	configPath := filepath.Join(dir, ".svalconfig.yaml")
+
+	writeConfigTestFile(t, schemaPath, `{"type":"object","required":["name"],"properties":{"name":{"type":"string"}}}`)
+	// Three invalid files - fail-fast should stop after the first.
+	writeConfigTestFile(t, filepath.Join(dir, "data", "a.yaml"), "bad: 1\n")
+	writeConfigTestFile(t, filepath.Join(dir, "data", "b.yaml"), "bad: 2\n")
+	writeConfigTestFile(t, filepath.Join(dir, "data", "c.yaml"), "bad: 3\n")
+	writeConfigTestFile(t, configPath, "rules:\n  - pattern: \"data/**/*.yaml\"\n    schema: \"schema.json\"\n")
+
+	root := newRootCmd("dev")
+	root.SetArgs([]string{"validate", "--config", configPath, "--fail-fast"})
+
+	var errOut bytes.Buffer
+	root.SetErr(&errOut)
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid files")
+	}
+	// With fail-fast only one error message should be printed.
+	errorCount := strings.Count(errOut.String(), "name")
+	if errorCount != 1 {
+		t.Fatalf("expected exactly 1 error reported with --fail-fast, got %d:\n%s", errorCount, errOut.String())
+	}
+}
+
+func TestValidateCommandFailFastJSON(t *testing.T) {
+	dir := t.TempDir()
+	schemaPath := filepath.Join(dir, "schema.json")
+	configPath := filepath.Join(dir, ".svalconfig.yaml")
+
+	writeConfigTestFile(t, schemaPath, `{"type":"object","required":["name"],"properties":{"name":{"type":"string"}}}`)
+	writeConfigTestFile(t, filepath.Join(dir, "data", "a.yaml"), "bad: 1\n")
+	writeConfigTestFile(t, filepath.Join(dir, "data", "b.yaml"), "bad: 2\n")
+	writeConfigTestFile(t, configPath, "rules:\n  - pattern: \"data/**/*.yaml\"\n    schema: \"schema.json\"\n")
+
+	root := newRootCmd("dev")
+	root.SetArgs([]string{"validate", "--config", configPath, "--fail-fast", "--json"})
+
+	var out bytes.Buffer
+	root.SetOut(&out)
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid files")
+	}
+	// With fail-fast only one JSON line should be emitted.
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("expected exactly 1 JSON line with --fail-fast, got %d:\n%s", len(lines), out.String())
+	}
+	var result map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &result); err != nil {
+		t.Fatalf("output is not valid JSON: %v\nline: %s", err, lines[0])
+	}
+	if result["valid"] != false {
+		t.Fatalf("expected valid: false, got: %v", result["valid"])
+	}
+}

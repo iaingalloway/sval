@@ -50,8 +50,8 @@ It does **not** validate Markdown body content.
   - [x] Local $ref resolution (relative to schema file)
   - [x] Remote $ref resolution
 - CLI ergonomics
-  - [ ] stdin support
-  - [ ] fail-fast and summary modes
+  - [x] fail-fast mode (`--fail-fast`)
+  - [ ] summary mode
   - [ ] stable exit codes for CI
   - [ ] verbosity control (--quiet / --verbose)
 - Git integration

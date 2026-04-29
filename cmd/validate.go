@@ -19,6 +19,7 @@ func NewValidateCmd() *cobra.Command {
 	var configPath string
 	var configFromVSCode bool
 	var jsonOutput bool
+	var failFast bool
 
 	cmd := &cobra.Command{
 		Use:   "validate [file]",
@@ -40,7 +41,7 @@ func NewValidateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return runConfigMode(cmd, cfg, cfgDir, jsonOutput)
+			return runConfigMode(cmd, cfg, cfgDir, jsonOutput, failFast)
 		},
 	}
 
@@ -48,6 +49,7 @@ func NewValidateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&configPath, "config", "", "path to sval config file")
 	cmd.Flags().BoolVar(&configFromVSCode, "config-from-vscode", false, "load schema rules from .vscode/settings.json")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output results as JSON")
+	cmd.Flags().BoolVar(&failFast, "fail-fast", false, "stop after the first validation failure")
 
 	return cmd
 }
@@ -122,7 +124,7 @@ func resolveConfig(configFlag string, fromVSCode bool) (*config.Config, string, 
 }
 
 // runConfigMode expands each rule's glob pattern, filters ignored files, and validates.
-func runConfigMode(cmd *cobra.Command, cfg *config.Config, cfgDir string, jsonOutput bool) error {
+func runConfigMode(cmd *cobra.Command, cfg *config.Config, cfgDir string, jsonOutput bool, failFast bool) error {
 	seen := make(map[string]struct{})
 	anyInvalid := false
 
@@ -159,24 +161,12 @@ func runConfigMode(cmd *cobra.Command, cfg *config.Config, cfgDir string, jsonOu
 				continue
 			}
 
-			if jsonOutput {
-				result, err := validator.ValidatePathResult(abs, schemaPath)
-				if err != nil {
-					out, _ := json.Marshal(map[string]string{"error": err.Error()})
-					fmt.Fprintln(cmd.OutOrStdout(), string(out))
-					anyInvalid = true
-					continue
+			invalid := validateOne(cmd, abs, schemaPath, jsonOutput)
+			if invalid {
+				if failFast {
+					return errors.New("")
 				}
-				out, _ := json.Marshal(result)
-				fmt.Fprintln(cmd.OutOrStdout(), string(out))
-				if !result.Valid {
-					anyInvalid = true
-				}
-			} else {
-				if err := validator.ValidatePath(abs, schemaPath); err != nil {
-					fmt.Fprintln(cmd.ErrOrStderr(), err)
-					anyInvalid = true
-				}
+				anyInvalid = true
 			}
 		}
 	}
@@ -188,6 +178,28 @@ func runConfigMode(cmd *cobra.Command, cfg *config.Config, cfgDir string, jsonOu
 		fmt.Fprintf(cmd.OutOrStdout(), "Validated %d file(s). All files are valid.\n", len(seen))
 	}
 	return nil
+}
+
+// validateOne validates a single file and writes its result to the appropriate
+// stream. It returns true if the file was invalid (or could not be validated).
+func validateOne(cmd *cobra.Command, absPath, schemaPath string, jsonOutput bool) bool {
+	if jsonOutput {
+		result, err := validator.ValidatePathResult(absPath, schemaPath)
+		if err != nil {
+			out, _ := json.Marshal(map[string]string{"error": err.Error()})
+			fmt.Fprintln(cmd.OutOrStdout(), string(out))
+			return true
+		}
+		out, _ := json.Marshal(result)
+		fmt.Fprintln(cmd.OutOrStdout(), string(out))
+		return !result.Valid
+	}
+
+	if err := validator.ValidatePath(absPath, schemaPath); err != nil {
+		fmt.Fprintln(cmd.ErrOrStderr(), err)
+		return true
+	}
+	return false
 }
 
 func isIgnoredByConfig(absPath string, patterns []string, cfgDir string) bool {
