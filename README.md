@@ -42,10 +42,10 @@ It does **not** validate Markdown body content.
   - [x] Clear, deterministic error reporting
   - [x] Machine-readable output (--json)
 - File handling
-  - [ ] Glob-based rule matching
-  - [ ] Directory and recursive validation
-  - [ ] Explicit config file
-  - [ ] .gitignore-style ignore support
+  - [x] Explicit config file (`--config` flag or auto-discovery)
+  - [x] Glob-based rule matching (doublestar patterns per rule)
+  - [x] Directory and recursive validation (patterns expand recursively)
+  - [x] Ignore support (config `ignore` patterns, no `.gitignore` reading)
 - Schema handling
   - [ ] Local $ref resolution (relative to schema file)
   - [ ] Remote $ref resolution
@@ -59,6 +59,7 @@ It does **not** validate Markdown body content.
 - Git integration
   - [ ] validate changed files (--changed)
   - [ ] validate staged files (--staged)
+  - [ ] Option to ignore files ignored by .gitignore
 - Dev workflow
   - [ ] watch mode for local development
 
@@ -69,6 +70,33 @@ Validate a single file against a schema:
 ```bash
 sval validate ./path/to/file --schema ./path/to/schema.json
 ```
+
+## Configuration
+
+When no `--config` flag is provided, `sval validate` looks for a config file in the current working directory.
+
+- `.svalconfig.yaml`
+- `svalconfig.yaml`
+- `.sval.yaml`
+- `sval.yaml`
+
+`.yml`, `.json`, and `.toml` extensions are also supported. The first matching file is used.
+
+### Example config file
+
+```yaml
+rules:
+  - pattern: "docs/**/*.yaml"
+    schema: "schemas/doc.json"
+  - pattern: "config/*.toml"
+    schema: "schemas/config.json"
+
+ignore:
+  - "vendor/**"
+  - "node_modules/**"
+```
+
+You can also reuse the schema associations defined in VS Code settings (`yaml.schemas` in `.vscode/settings.json`) by using the `--config-from-vscode` flag.
 
 ## Frontmatter Detection
 
