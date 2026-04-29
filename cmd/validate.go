@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,20 +29,18 @@ func NewValidateCmd() *cobra.Command {
 				return fmt.Errorf("--schema cannot be combined with --config or --config-from-vscode")
 			}
 
-			ctx := context.Background()
-
 			if schemaPath != "" {
 				if len(args) != 1 {
 					return fmt.Errorf("validate requires exactly one file argument when --schema is used")
 				}
-				return runSchemaMode(ctx, cmd, args[0], schemaPath, jsonOutput)
+				return runSchemaMode(cmd, args[0], schemaPath, jsonOutput)
 			}
 
 			cfg, cfgDir, err := resolveConfig(configPath, configFromVSCode)
 			if err != nil {
 				return err
 			}
-			return runConfigMode(ctx, cmd, cfg, cfgDir, jsonOutput)
+			return runConfigMode(cmd, cfg, cfgDir, jsonOutput)
 		},
 	}
 
@@ -56,16 +53,16 @@ func NewValidateCmd() *cobra.Command {
 }
 
 // runSchemaMode is the original single-file path: validate one file against one schema.
-func runSchemaMode(ctx context.Context, cmd *cobra.Command, filePath, schemaPath string, jsonOutput bool) error {
+func runSchemaMode(cmd *cobra.Command, filePath, schemaPath string, jsonOutput bool) error {
 	if !jsonOutput {
-		if err := validator.ValidatePath(ctx, filePath, schemaPath); err != nil {
+		if err := validator.ValidatePath(filePath, schemaPath); err != nil {
 			return err
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Validated 1 file. All files are valid.\n")
 		return nil
 	}
 
-	result, err := validator.ValidatePathResult(ctx, filePath, schemaPath)
+	result, err := validator.ValidatePathResult(filePath, schemaPath)
 	if err != nil {
 		out, _ := json.Marshal(map[string]string{"error": err.Error()})
 		fmt.Fprintln(cmd.OutOrStdout(), string(out))
@@ -125,7 +122,7 @@ func resolveConfig(configFlag string, fromVSCode bool) (*config.Config, string, 
 }
 
 // runConfigMode expands each rule's glob pattern, filters ignored files, and validates.
-func runConfigMode(ctx context.Context, cmd *cobra.Command, cfg *config.Config, cfgDir string, jsonOutput bool) error {
+func runConfigMode(cmd *cobra.Command, cfg *config.Config, cfgDir string, jsonOutput bool) error {
 	seen := make(map[string]struct{})
 	anyInvalid := false
 
@@ -163,7 +160,7 @@ func runConfigMode(ctx context.Context, cmd *cobra.Command, cfg *config.Config, 
 			}
 
 			if jsonOutput {
-				result, err := validator.ValidatePathResult(ctx, abs, schemaPath)
+				result, err := validator.ValidatePathResult(abs, schemaPath)
 				if err != nil {
 					out, _ := json.Marshal(map[string]string{"error": err.Error()})
 					fmt.Fprintln(cmd.OutOrStdout(), string(out))
@@ -176,7 +173,7 @@ func runConfigMode(ctx context.Context, cmd *cobra.Command, cfg *config.Config, 
 					anyInvalid = true
 				}
 			} else {
-				if err := validator.ValidatePath(ctx, abs, schemaPath); err != nil {
+				if err := validator.ValidatePath(abs, schemaPath); err != nil {
 					fmt.Fprintln(cmd.ErrOrStderr(), err)
 					anyInvalid = true
 				}

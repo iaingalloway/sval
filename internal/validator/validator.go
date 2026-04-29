@@ -1,14 +1,12 @@
 package validator
 
 import (
-	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/qri-io/jsonschema"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 
 	"sval/internal/loader"
 )
@@ -38,31 +36,31 @@ type ValidationResult struct {
 	Errors []ValidationError `json:"errors,omitempty"`
 }
 
-func ValidatePath(ctx context.Context, filePath string, schemaPath string) error {
+func ValidatePath(filePath string, schemaPath string) error {
 	schema, err := loadSchema(schemaPath)
 	if err != nil {
 		return fmt.Errorf("load schema: %v", err)
 	}
-	return ValidateFile(ctx, filePath, schema)
+	return ValidateFile(filePath, schema)
 }
 
 // ValidatePathResult validates filePath against the schema at schemaPath and
 // returns a structured result. System errors (schema load failure, file read
 // failure) are returned as a non-nil error with a nil result.
-func ValidatePathResult(ctx context.Context, filePath string, schemaPath string) (*ValidationResult, error) {
+func ValidatePathResult(filePath string, schemaPath string) (*ValidationResult, error) {
 	schema, err := loadSchema(schemaPath)
 	if err != nil {
 		return nil, fmt.Errorf("load schema: %v", err)
 	}
-	return validateFileResult(ctx, filePath, schema)
+	return validateFileResult(filePath, schema)
 }
 
-func ValidateFile(ctx context.Context, path string, schema *jsonschema.Schema) error {
+func ValidateFile(path string, schema *jsonschema.Schema) error {
 	if schema == nil {
 		return fmt.Errorf("schema is nil")
 	}
 
-	result, err := validateFileResult(ctx, path, schema)
+	result, err := validateFileResult(path, schema)
 	if err != nil {
 		return err
 	}
@@ -81,29 +79,20 @@ func ValidateFile(ctx context.Context, path string, schema *jsonschema.Schema) e
 	return nil
 }
 
-func validateFileResult(ctx context.Context, path string, schema *jsonschema.Schema) (*ValidationResult, error) {
+func validateFileResult(path string, schema *jsonschema.Schema) (*ValidationResult, error) {
 	docs, err := loadDocumentsForValidation(path)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %v", path, err)
 	}
 
 	var allErrors []ValidationError
-	for idx, doc := range docs {
+	for _, doc := range docs {
 		if doc == nil {
 			doc = &loader.Document{}
 		}
 
-		jsonBytes, err := json.Marshal(doc.Data)
-		if err != nil {
-			return nil, fmt.Errorf("%s (doc %d): cannot marshal data: %v", path, idx+1, err)
-		}
-
-		validationErrs, err := schema.ValidateBytes(ctx, jsonBytes)
-		if err != nil {
-			return nil, fmt.Errorf("%s (doc %d): schema validation failed: %v", path, idx+1, err)
-		}
-
-		allErrors = append(allErrors, buildValidationErrors(doc, validationErrs)...)
+		errs := buildValidationErrors(doc, schema.Validate(doc.Data))
+		allErrors = append(allErrors, errs...)
 	}
 
 	return &ValidationResult{
@@ -152,27 +141,44 @@ func DetectFileType(path string) FileType {
 }
 
 func loadSchema(path string) (*jsonschema.Schema, error) {
-	data, err := os.ReadFile(path)
+	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
 	}
-
-	schema := &jsonschema.Schema{}
-	if err := json.Unmarshal(data, schema); err != nil {
+	c := jsonschema.NewCompiler()
+	schema, err := c.Compile("file://" + abs)
+	if err != nil {
+		// Surface "no such file" errors directly; wrap compile errors with context.
 		return nil, fmt.Errorf("parse schema: %v", err)
 	}
 	return schema, nil
 }
 
-func buildValidationErrors(doc *loader.Document, errs []jsonschema.KeyError) []ValidationError {
-	result := make([]ValidationError, 0, len(errs))
-	for _, ve := range errs {
-		line, column := pointerPosition(doc, ve.PropertyPath)
+func buildValidationErrors(doc *loader.Document, err error) []ValidationError {
+	if err == nil {
+		return nil
+	}
+	var ve *jsonschema.ValidationError
+	if !errors.As(err, &ve) {
+		return []ValidationError{{Message: err.Error()}}
+	}
+
+	basic := ve.BasicOutput()
+	var result []ValidationError
+	for _, unit := range basic.Errors {
+		if unit.Error == nil {
+			continue
+		}
+		ptr := unit.InstanceLocation
+		if ptr == "" {
+			ptr = "/"
+		}
+		line, column := pointerPosition(doc, ptr)
 		result = append(result, ValidationError{
-			Field:   ve.PropertyPath,
+			Field:   ptr,
 			Line:    line,
 			Column:  column,
-			Message: ve.Error(),
+			Message: unit.Error.String(),
 		})
 	}
 	return result

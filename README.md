@@ -47,7 +47,7 @@ It does **not** validate Markdown body content.
   - [x] Directory and recursive validation (patterns expand recursively)
   - [x] Ignore support (config `ignore` patterns, no `.gitignore` reading)
 - Schema handling
-  - [ ] Local $ref resolution (relative to schema file)
+  - [x] Local $ref resolution (relative to schema file)
   - [ ] Remote $ref resolution
   - [ ] Schema bundling/caching
 - CLI ergonomics

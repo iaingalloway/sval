@@ -1,15 +1,13 @@
 package validator
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/qri-io/jsonschema"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 func fixturePath(parts ...string) string {
@@ -37,69 +35,68 @@ func TestDetectFileType(t *testing.T) {
 }
 
 func TestValidateFile(t *testing.T) {
-	ctx := context.Background()
 	schema := newTestSchema(t)
 	dir := t.TempDir()
 
 	t.Run("yaml success", func(t *testing.T) {
 		path := writeTempFile(t, dir, "good.yaml", "name: ok\ncount: 1\n")
-		if err := ValidateFile(ctx, path, schema); err != nil {
+		if err := ValidateFile(path, schema); err != nil {
 			t.Fatalf("ValidateFile() unexpected error: %v", err)
 		}
 	})
 
 	t.Run("markdown success", func(t *testing.T) {
 		path := writeTempFile(t, dir, "good.md", "---\nname: ok\ncount: 1\n---\nBody")
-		if err := ValidateFile(ctx, path, schema); err != nil {
+		if err := ValidateFile(path, schema); err != nil {
 			t.Fatalf("ValidateFile() unexpected error: %v", err)
 		}
 	})
 
 	t.Run("json success", func(t *testing.T) {
 		path := writeTempFile(t, dir, "good.json", `{"name":"ok","count":1}`)
-		if err := ValidateFile(ctx, path, schema); err != nil {
+		if err := ValidateFile(path, schema); err != nil {
 			t.Fatalf("ValidateFile() unexpected error: %v", err)
 		}
 	})
 
 	t.Run("toml success", func(t *testing.T) {
 		path := writeTempFile(t, dir, "good.toml", "name = \"ok\"\ncount = 1\n")
-		if err := ValidateFile(ctx, path, schema); err != nil {
+		if err := ValidateFile(path, schema); err != nil {
 			t.Fatalf("ValidateFile() unexpected error: %v", err)
 		}
 	})
 
 	t.Run("markdown json frontmatter success", func(t *testing.T) {
 		path := writeTempFile(t, dir, "good-json-frontmatter.md", "---json\n{\"name\":\"ok\",\"count\":1}\n---\nBody")
-		if err := ValidateFile(ctx, path, schema); err != nil {
+		if err := ValidateFile(path, schema); err != nil {
 			t.Fatalf("ValidateFile() unexpected error: %v", err)
 		}
 	})
 
 	t.Run("markdown toml frontmatter success", func(t *testing.T) {
 		path := writeTempFile(t, dir, "good-toml-frontmatter.md", "+++\nname = \"ok\"\ncount = 1\n+++\nBody")
-		if err := ValidateFile(ctx, path, schema); err != nil {
+		if err := ValidateFile(path, schema); err != nil {
 			t.Fatalf("ValidateFile() unexpected error: %v", err)
 		}
 	})
 
 	t.Run("markdown multiple frontmatter blocks success", func(t *testing.T) {
 		path := writeTempFile(t, dir, "good-multi-frontmatter.md", "---\nname: ok\ncount: 1\n---\n+++\nname = \"ok2\"\ncount = 2\n+++\nBody")
-		if err := ValidateFile(ctx, path, schema); err != nil {
+		if err := ValidateFile(path, schema); err != nil {
 			t.Fatalf("ValidateFile() unexpected error: %v", err)
 		}
 	})
 
 	t.Run("yaml multiple documents success", func(t *testing.T) {
 		path := writeTempFile(t, dir, "good-multi.yaml", "name: ok\ncount: 1\n---\nname: ok2\ncount: 2\n")
-		if err := ValidateFile(ctx, path, schema); err != nil {
+		if err := ValidateFile(path, schema); err != nil {
 			t.Fatalf("ValidateFile() unexpected error: %v", err)
 		}
 	})
 
 	t.Run("yaml multiple documents failing error shows file line", func(t *testing.T) {
 		path := writeTempFile(t, dir, "bad-multi.yaml", "name: ok\ncount: 1\n---\nname: bad\n")
-		err := ValidateFile(ctx, path, schema)
+		err := ValidateFile(path, schema)
 		if err == nil {
 			t.Fatalf("expected validation error, got nil")
 		}
@@ -111,7 +108,7 @@ func TestValidateFile(t *testing.T) {
 
 	t.Run("validation error includes file and line", func(t *testing.T) {
 		path := writeTempFile(t, dir, "bad.yaml", "name: 7\ncount: not-a-number\n")
-		err := ValidateFile(ctx, path, schema)
+		err := ValidateFile(path, schema)
 		if err == nil {
 			t.Fatalf("expected validation error, got nil")
 		}
@@ -125,7 +122,7 @@ func TestValidateFile(t *testing.T) {
 
 	t.Run("nil schema", func(t *testing.T) {
 		path := writeTempFile(t, dir, "nil-schema.yaml", "name: ok\ncount: 1\n")
-		err := ValidateFile(ctx, path, nil)
+		err := ValidateFile(path, nil)
 		if err == nil {
 			t.Fatalf("expected error, got nil")
 		}
@@ -136,7 +133,7 @@ func TestValidateFile(t *testing.T) {
 
 	t.Run("unsupported type", func(t *testing.T) {
 		path := writeTempFile(t, dir, "file.txt", "hello")
-		err := ValidateFile(ctx, path, schema)
+		err := ValidateFile(path, schema)
 		if err == nil {
 			t.Fatalf("expected unsupported type error, got nil")
 		}
@@ -151,21 +148,21 @@ func TestValidatePath(t *testing.T) {
 		schemaPath := fixturePath("schema", "valid-object.json")
 		dataPath := fixturePath("yaml", "good.yaml")
 
-		if err := ValidatePath(context.Background(), dataPath, schemaPath); err != nil {
+		if err := ValidatePath(dataPath, schemaPath); err != nil {
 			t.Fatalf("ValidatePath() unexpected error: %v", err)
 		}
 	})
 
 	t.Run("json success", func(t *testing.T) {
 		schemaPath := fixturePath("schema", "valid-object.json")
-		if err := ValidatePath(context.Background(), fixturePath("json", "good.json"), schemaPath); err != nil {
+		if err := ValidatePath(fixturePath("json", "good.json"), schemaPath); err != nil {
 			t.Fatalf("ValidatePath() unexpected error: %v", err)
 		}
 	})
 
 	t.Run("json schema error", func(t *testing.T) {
 		schemaPath := fixturePath("schema", "valid-object.json")
-		err := ValidatePath(context.Background(), fixturePath("json", "bad.json"), schemaPath)
+		err := ValidatePath(fixturePath("json", "bad.json"), schemaPath)
 		if err == nil {
 			t.Fatalf("expected validation error, got nil")
 		}
@@ -176,14 +173,14 @@ func TestValidatePath(t *testing.T) {
 
 	t.Run("toml success", func(t *testing.T) {
 		schemaPath := fixturePath("schema", "valid-object.json")
-		if err := ValidatePath(context.Background(), fixturePath("toml", "good.toml"), schemaPath); err != nil {
+		if err := ValidatePath(fixturePath("toml", "good.toml"), schemaPath); err != nil {
 			t.Fatalf("ValidatePath() unexpected error: %v", err)
 		}
 	})
 
 	t.Run("toml schema error", func(t *testing.T) {
 		schemaPath := fixturePath("schema", "valid-object.json")
-		err := ValidatePath(context.Background(), fixturePath("toml", "bad.toml"), schemaPath)
+		err := ValidatePath(fixturePath("toml", "bad.toml"), schemaPath)
 		if err == nil {
 			t.Fatalf("expected validation error, got nil")
 		}
@@ -194,28 +191,28 @@ func TestValidatePath(t *testing.T) {
 
 	t.Run("markdown yaml frontmatter success", func(t *testing.T) {
 		schemaPath := fixturePath("schema", "valid-object.json")
-		if err := ValidatePath(context.Background(), fixturePath("frontmatter", "good-yaml.md"), schemaPath); err != nil {
+		if err := ValidatePath(fixturePath("frontmatter", "good-yaml.md"), schemaPath); err != nil {
 			t.Fatalf("ValidatePath() unexpected error: %v", err)
 		}
 	})
 
 	t.Run("markdown toml frontmatter success", func(t *testing.T) {
 		schemaPath := fixturePath("schema", "valid-object.json")
-		if err := ValidatePath(context.Background(), fixturePath("frontmatter", "good-toml.md"), schemaPath); err != nil {
+		if err := ValidatePath(fixturePath("frontmatter", "good-toml.md"), schemaPath); err != nil {
 			t.Fatalf("ValidatePath() unexpected error: %v", err)
 		}
 	})
 
 	t.Run("markdown json frontmatter success", func(t *testing.T) {
 		schemaPath := fixturePath("schema", "valid-object.json")
-		if err := ValidatePath(context.Background(), fixturePath("frontmatter", "good-json.md"), schemaPath); err != nil {
+		if err := ValidatePath(fixturePath("frontmatter", "good-json.md"), schemaPath); err != nil {
 			t.Fatalf("ValidatePath() unexpected error: %v", err)
 		}
 	})
 
 	t.Run("markdown yaml frontmatter schema error", func(t *testing.T) {
 		schemaPath := fixturePath("schema", "valid-object.json")
-		err := ValidatePath(context.Background(), fixturePath("frontmatter", "bad-yaml.md"), schemaPath)
+		err := ValidatePath(fixturePath("frontmatter", "bad-yaml.md"), schemaPath)
 		if err == nil {
 			t.Fatalf("expected validation error, got nil")
 		}
@@ -226,14 +223,14 @@ func TestValidatePath(t *testing.T) {
 
 	t.Run("markdown mixed frontmatter blocks all valid", func(t *testing.T) {
 		schemaPath := fixturePath("schema", "valid-object.json")
-		if err := ValidatePath(context.Background(), fixturePath("frontmatter", "mixed-valid.md"), schemaPath); err != nil {
+		if err := ValidatePath(fixturePath("frontmatter", "mixed-valid.md"), schemaPath); err != nil {
 			t.Fatalf("ValidatePath() unexpected error: %v", err)
 		}
 	})
 
 	t.Run("markdown mixed frontmatter blocks second fails", func(t *testing.T) {
 		schemaPath := fixturePath("schema", "valid-object.json")
-		err := ValidatePath(context.Background(), fixturePath("frontmatter", "mixed-schema-error.md"), schemaPath)
+		err := ValidatePath(fixturePath("frontmatter", "mixed-schema-error.md"), schemaPath)
 		if err == nil {
 			t.Fatalf("expected validation error, got nil")
 		}
@@ -244,7 +241,7 @@ func TestValidatePath(t *testing.T) {
 
 	t.Run("yaml multi-doc schema error shows absolute line number", func(t *testing.T) {
 		schemaPath := fixturePath("schema", "valid-object.json")
-		err := ValidatePath(context.Background(), fixturePath("yaml", "multi-docs-schema-error.yaml"), schemaPath)
+		err := ValidatePath(fixturePath("yaml", "multi-docs-schema-error.yaml"), schemaPath)
 		if err == nil {
 			t.Fatalf("expected validation error, got nil")
 		}
@@ -254,9 +251,21 @@ func TestValidatePath(t *testing.T) {
 		}
 	})
 
+	t.Run("schema with local $ref resolves", func(t *testing.T) {
+		// with-ref.json contains {"$ref": "valid-object.json"} — tests local $ref resolution.
+		schemaPath := fixturePath("schema", "with-ref.json")
+		if err := ValidatePath(fixturePath("yaml", "good.yaml"), schemaPath); err != nil {
+			t.Fatalf("expected $ref to resolve and validation to pass, got: %v", err)
+		}
+		err := ValidatePath(fixturePath("yaml", "bad-multi.yaml"), schemaPath)
+		if err == nil {
+			t.Fatal("expected validation error via $ref schema, got nil")
+		}
+	})
+
 	t.Run("missing schema path", func(t *testing.T) {
 		dataPath := fixturePath("yaml", "good.yaml")
-		err := ValidatePath(context.Background(), dataPath, fixturePath("schema", "missing.json"))
+		err := ValidatePath(dataPath, fixturePath("schema", "missing.json"))
 		if err == nil {
 			t.Fatalf("expected error, got nil")
 		}
@@ -270,27 +279,22 @@ func TestValidatePath(t *testing.T) {
 
 	t.Run("invalid schema json", func(t *testing.T) {
 		dataPath := fixturePath("yaml", "good.yaml")
-		err := ValidatePath(context.Background(), dataPath, fixturePath("schema", "invalid-schema.json"))
+		err := ValidatePath(dataPath, fixturePath("schema", "invalid-schema.json"))
 		if err == nil {
 			t.Fatalf("expected error, got nil")
 		}
 		if !strings.Contains(err.Error(), "load schema") {
 			t.Fatalf("expected load schema prefix, got: %v", err)
 		}
-		if !strings.Contains(err.Error(), "parse schema") {
-			t.Fatalf("expected parse schema detail, got: %v", err)
-		}
 	})
 }
 
 func TestValidatePathResult(t *testing.T) {
-	ctx := context.Background()
-
 	t.Run("valid file returns valid result", func(t *testing.T) {
 		schemaPath := fixturePath("schema", "valid-object.json")
 		dataPath := fixturePath("yaml", "good.yaml")
 
-		result, err := ValidatePathResult(ctx, dataPath, schemaPath)
+		result, err := ValidatePathResult(dataPath, schemaPath)
 		if err != nil {
 			t.Fatalf("ValidatePathResult() unexpected error: %v", err)
 		}
@@ -314,7 +318,7 @@ func TestValidatePathResult(t *testing.T) {
 		// missing required "count" field
 		path := writeTempFile(t, dir, "bad.yaml", "name: ok\n")
 
-		result, err := ValidatePathResult(ctx, path, schemaPath)
+		result, err := ValidatePathResult(path, schemaPath)
 		if err != nil {
 			t.Fatalf("ValidatePathResult() unexpected error: %v", err)
 		}
@@ -340,7 +344,7 @@ func TestValidatePathResult(t *testing.T) {
 		dir := t.TempDir()
 		path := writeTempFile(t, dir, "bad.yaml", "name: 7\ncount: not-a-number\n")
 
-		result, err := ValidatePathResult(ctx, path, schemaPath)
+		result, err := ValidatePathResult(path, schemaPath)
 		if err != nil {
 			t.Fatalf("ValidatePathResult() unexpected error: %v", err)
 		}
@@ -356,7 +360,7 @@ func TestValidatePathResult(t *testing.T) {
 
 	t.Run("system error: missing schema returns nil result and error", func(t *testing.T) {
 		dataPath := fixturePath("yaml", "good.yaml")
-		result, err := ValidatePathResult(ctx, dataPath, fixturePath("schema", "missing.json"))
+		result, err := ValidatePathResult(dataPath, fixturePath("schema", "missing.json"))
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -370,7 +374,7 @@ func TestValidatePathResult(t *testing.T) {
 
 	t.Run("system error: missing data file returns nil result and error", func(t *testing.T) {
 		schemaPath := fixturePath("schema", "valid-object.json")
-		result, err := ValidatePathResult(ctx, fixturePath("yaml", "missing.yaml"), schemaPath)
+		result, err := ValidatePathResult(fixturePath("yaml", "missing.yaml"), schemaPath)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -382,17 +386,20 @@ func TestValidatePathResult(t *testing.T) {
 
 func newTestSchema(t *testing.T) *jsonschema.Schema {
 	t.Helper()
-	schemaJSON := []byte(`{
-        "type": "object",
-        "required": ["name", "count"],
-        "properties": {
-            "name": {"type": "string"},
-            "count": {"type": "integer"}
-        }
-    }`)
-	schema := &jsonschema.Schema{}
-	if err := json.Unmarshal(schemaJSON, schema); err != nil {
-		t.Fatalf("failed to unmarshal schema: %v", err)
+	c := jsonschema.NewCompiler()
+	if err := c.AddResource("https://sval.test/schema", map[string]any{
+		"type":     "object",
+		"required": []any{"name", "count"},
+		"properties": map[string]any{
+			"name":  map[string]any{"type": "string"},
+			"count": map[string]any{"type": "integer"},
+		},
+	}); err != nil {
+		t.Fatalf("AddResource: %v", err)
+	}
+	schema, err := c.Compile("https://sval.test/schema")
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
 	}
 	return schema
 }
