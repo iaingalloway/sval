@@ -11,6 +11,7 @@ build:
 # Check formatting without modifying files
 lint:
   gofmt -l . | tee /dev/stderr | (! grep -q .)
+  go vet ./...
 
 # Run continuous integration checks
 ci: lint test
