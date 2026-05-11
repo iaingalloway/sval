@@ -1,6 +1,6 @@
 {
   "name": "sval-devcontainer",
-  "image": "ghcr.io/iaingalloway/devcontainers/go:1.5-go1.26.0",
+  "image": "ghcr.io/iaingalloway/devcontainers/go:1.5.43-go1.26.0",
   "runArgs": [
     "--name",
     "sval-devcontainer",

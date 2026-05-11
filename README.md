@@ -11,6 +11,20 @@ Use cases include:
 - running schema checks in CI pipelines
 - catching invalid data early in mixed-format repositories
 
+## Installation
+
+Download a binary for your platform from the [releases page](https://github.com/iaingalloway/sval/releases), or install with Go:
+
+```bash
+go install github.com/iaingalloway/sval@latest
+```
+
+A Docker image is also available:
+
+```bash
+docker run --rm -v "$(pwd):/work" -w /work ghcr.io/iaingalloway/sval:latest validate --config .svalconfig.yaml
+```
+
 ## Scope
 
 Sval validates **structured data** extracted from files:
