@@ -24,6 +24,25 @@ type Config struct {
 	Ignore []string `yaml:"ignore" toml:"ignore" json:"ignore"`
 }
 
+// Warnings returns a list of human-readable advisory messages about the
+// config contents. These are not errors - the config is usable - but they
+// indicate likely mistakes (e.g. a typo'd key that left rules empty).
+func (c *Config) Warnings() []string {
+	var w []string
+	if len(c.Rules) == 0 {
+		w = append(w, "config has no rules; no files will be validated")
+	}
+	for i, r := range c.Rules {
+		if strings.TrimSpace(r.Pattern) == "" {
+			w = append(w, fmt.Sprintf("rule %d has an empty pattern; it will never match", i+1))
+		}
+		if strings.TrimSpace(r.Schema) == "" {
+			w = append(w, fmt.Sprintf("rule %d has an empty schema path", i+1))
+		}
+	}
+	return w
+}
+
 // discoveryNames lists candidate config file base names in priority order.
 // For each base name all four extensions are tried in order.
 var discoveryNames = []string{

@@ -118,6 +118,9 @@ func NewValidateCmd() *cobra.Command {
 			for _, w := range warnings {
 				rep.diag("vscode config: skipping schema with unsupported URL scheme: %s", w)
 			}
+			for _, w := range cfg.Warnings() {
+				rep.warn(w)
+			}
 
 			if changedFlag || stagedFlag {
 				cwd, err := os.Getwd()
@@ -459,6 +462,14 @@ func (r *reporter) diag(format string, args ...any) {
 		return
 	}
 	_, _ = fmt.Fprintf(r.err, "diag: "+format+"\n", args...)
+}
+
+// warn emits an advisory warning to stderr at default verbosity and above.
+func (r *reporter) warn(msg string) {
+	if r.json || r.level < verbosityDefault {
+		return
+	}
+	_, _ = fmt.Fprintln(r.err, "warning:", msg)
 }
 
 // summary emits the aggregate count line. Suppressed below summary level. At
