@@ -57,6 +57,52 @@ func ValidatePathResult(filePath string, schemaPath string) (*ValidationResult, 
 	return validateFileResult(filePath, schema)
 }
 
+// SchemaCache compiles and caches JSON schemas for the lifetime of a run,
+// so each distinct schema path is fetched and compiled only once.
+type SchemaCache struct {
+	compiler *jsonschema.Compiler
+	cache    map[string]*jsonschema.Schema
+}
+
+// NewSchemaCache returns an empty SchemaCache backed by a fresh compiler.
+func NewSchemaCache() *SchemaCache {
+	return &SchemaCache{
+		compiler: newCompiler(),
+		cache:    make(map[string]*jsonschema.Schema),
+	}
+}
+
+func (sc *SchemaCache) compile(schemaPath string) (*jsonschema.Schema, error) {
+	if s, ok := sc.cache[schemaPath]; ok {
+		return s, nil
+	}
+	s, err := compileSchema(sc.compiler, schemaPath)
+	if err != nil {
+		return nil, err
+	}
+	sc.cache[schemaPath] = s
+	return s, nil
+}
+
+// ValidatePath validates filePath against the schema at schemaPath, using the
+// cache to avoid recompiling the same schema more than once per run.
+func (sc *SchemaCache) ValidatePath(filePath, schemaPath string) error {
+	schema, err := sc.compile(schemaPath)
+	if err != nil {
+		return fmt.Errorf("load schema: %v", err)
+	}
+	return ValidateFile(filePath, schema)
+}
+
+// ValidatePathResult is the structured-result variant of ValidatePath.
+func (sc *SchemaCache) ValidatePathResult(filePath, schemaPath string) (*ValidationResult, error) {
+	schema, err := sc.compile(schemaPath)
+	if err != nil {
+		return nil, fmt.Errorf("load schema: %v", err)
+	}
+	return validateFileResult(filePath, schema)
+}
+
 func ValidateFile(path string, schema *jsonschema.Schema) error {
 	if schema == nil {
 		return fmt.Errorf("schema is nil")
@@ -168,8 +214,7 @@ func newCompiler() *jsonschema.Compiler {
 	return c
 }
 
-func loadSchema(path string) (*jsonschema.Schema, error) {
-	c := newCompiler()
+func compileSchema(c *jsonschema.Compiler, path string) (*jsonschema.Schema, error) {
 	loc := path
 	if !strings.HasPrefix(path, "http://") && !strings.HasPrefix(path, "https://") {
 		abs, err := filepath.Abs(path)
@@ -180,10 +225,13 @@ func loadSchema(path string) (*jsonschema.Schema, error) {
 	}
 	schema, err := c.Compile(loc)
 	if err != nil {
-		// Surface "no such file" errors directly; wrap compile errors with context.
 		return nil, fmt.Errorf("parse schema: %v", err)
 	}
 	return schema, nil
+}
+
+func loadSchema(path string) (*jsonschema.Schema, error) {
+	return compileSchema(newCompiler(), path)
 }
 
 func buildValidationErrors(doc *loader.Document, err error) []ValidationError {

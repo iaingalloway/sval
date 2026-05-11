@@ -206,6 +206,7 @@ func resolveVerbosity(s string, quiet, summary, verbose, diag bool) (verbosity, 
 // when cfg is non-nil.
 func runFileList(rep *reporter, files []string, schemaPath string, cfg *config.Config, cfgDir string, failFast bool) error {
 	c := &runCounters{seen: make(map[string]struct{})}
+	cache := validator.NewSchemaCache()
 
 	for _, f := range files {
 		abs, err := filepath.Abs(f)
@@ -230,7 +231,7 @@ func runFileList(rep *reporter, files []string, schemaPath string, cfg *config.C
 			ignore = cfg.Ignore
 		}
 
-		if validateCandidate(rep, c, abs, schema, ignore, cfgDir, failFast) {
+		if validateCandidate(rep, c, cache, abs, schema, ignore, cfgDir, failFast) {
 			rep.summary(c.validated, c.skipped, c.failed)
 			return ErrSilent
 		}
@@ -291,6 +292,7 @@ func resolveConfig(configFlag string, fromVSCode bool) (*config.Config, string, 
 // runUsingConfig expands each rule's glob pattern, filters ignored files, and validates.
 func runUsingConfig(rep *reporter, cfg *config.Config, cfgDir string, failFast bool) error {
 	c := &runCounters{seen: make(map[string]struct{})}
+	cache := validator.NewSchemaCache()
 
 	for _, rule := range cfg.Rules {
 		pattern := resolveRel(cfgDir, rule.Pattern)
@@ -312,7 +314,7 @@ func runUsingConfig(rep *reporter, cfg *config.Config, cfgDir string, failFast b
 			}
 			c.seen[abs] = struct{}{}
 
-			if validateCandidate(rep, c, abs, schemaPath, cfg.Ignore, cfgDir, failFast) {
+			if validateCandidate(rep, c, cache, abs, schemaPath, cfg.Ignore, cfgDir, failFast) {
 				rep.summary(c.validated, c.skipped, c.failed)
 				return ErrSilent
 			}
@@ -338,7 +340,7 @@ type runCounters struct {
 // validateCandidate applies the ignore filter and file-type check to a single
 // already-deduped absolute path, then validates if it survives. Counters are
 // mutated in place. Returns true iff fail-fast should stop the loop.
-func validateCandidate(rep *reporter, c *runCounters, abs, schemaPath string, ignore []string, cfgDir string, failFast bool) bool {
+func validateCandidate(rep *reporter, c *runCounters, cache *validator.SchemaCache, abs, schemaPath string, ignore []string, cfgDir string, failFast bool) bool {
 	if isIgnoredByConfig(abs, ignore, cfgDir) {
 		c.skipped++
 		rep.diag("ignored: %s", abs)
@@ -350,7 +352,7 @@ func validateCandidate(rep *reporter, c *runCounters, abs, schemaPath string, ig
 		return false
 	}
 	c.validated++
-	if validateFile(rep, abs, schemaPath) {
+	if validateFile(rep, cache, abs, schemaPath) {
 		c.failed++
 		return failFast
 	}
@@ -382,9 +384,9 @@ func isIgnoredByConfig(absPath string, patterns []string, cfgDir string) bool {
 
 // validateFile validates a single file against a schema. Returns true if the
 // file failed validation or could not be validated due to a system error.
-func validateFile(rep *reporter, filePath, schemaPath string) bool {
+func validateFile(rep *reporter, cache *validator.SchemaCache, filePath, schemaPath string) bool {
 	if rep.json {
-		result, err := validator.ValidatePathResult(filePath, schemaPath)
+		result, err := cache.ValidatePathResult(filePath, schemaPath)
 		if err != nil {
 			rep.jsonError(err)
 			return true
@@ -393,7 +395,7 @@ func validateFile(rep *reporter, filePath, schemaPath string) bool {
 		return !result.Valid
 	}
 
-	if err := validator.ValidatePath(filePath, schemaPath); err != nil {
+	if err := cache.ValidatePath(filePath, schemaPath); err != nil {
 		rep.fileError(err)
 		return true
 	}
