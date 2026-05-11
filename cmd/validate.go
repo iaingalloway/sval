@@ -11,8 +11,8 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/spf13/cobra"
 
-	"sval/internal/config"
-	"sval/internal/validator"
+	"github.com/iaingalloway/sval/internal/config"
+	"github.com/iaingalloway/sval/internal/validator"
 )
 
 // ErrSilent signals that the command failed but has already written its own

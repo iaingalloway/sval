@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"sval/cmd"
+	"github.com/iaingalloway/sval/cmd"
 )
 
 var version = "dev"

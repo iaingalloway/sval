@@ -11,7 +11,7 @@ import (
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
-	"sval/internal/loader"
+	"github.com/iaingalloway/sval/internal/loader"
 )
 
 type FileType int
