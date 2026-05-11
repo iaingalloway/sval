@@ -3,6 +3,7 @@ package validator
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -188,6 +189,9 @@ func DetectFileType(path string) FileType {
 	}
 }
 
+// maxSchemaBytes is the maximum number of bytes read from a remote schema URL.
+const maxSchemaBytes = 10 * 1024 * 1024 // 10 MiB
+
 type httpURLLoader http.Client
 
 func (l *httpURLLoader) Load(url string) (any, error) {
@@ -200,7 +204,7 @@ func (l *httpURLLoader) Load(url string) (any, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%s returned status code %d", url, resp.StatusCode)
 	}
-	return jsonschema.UnmarshalJSON(resp.Body)
+	return jsonschema.UnmarshalJSON(io.LimitReader(resp.Body, maxSchemaBytes))
 }
 
 func newCompiler() *jsonschema.Compiler {
