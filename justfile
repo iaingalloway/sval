@@ -2,19 +2,22 @@ alias b := build
 alias f := format
 alias t := test
 
-default: ci
+default: check
 
 # Build the project
 build:
-  go build ./...
+  go build -o bin/sval .
 
-# Check formatting without modifying files
+# Lint without modifying
 lint:
   gofmt -l . | tee /dev/stderr | (! grep -q .)
   go vet ./...
 
-# Run continuous integration checks
-ci: lint test
+# Lint and test
+check: lint test
+
+# Build, lint, and test
+ci: build lint test
 
 # Format the project
 format:
@@ -24,6 +27,6 @@ format:
 run *args:
   go run main.go {{args}}
 
-# Run all tests in the project
+# Run all tests
 test *args:
   go test ./... {{args}}
