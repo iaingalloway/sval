@@ -291,7 +291,7 @@ func resolveConfig(configFlag string, fromVSCode bool) (*config.Config, string, 
 		return nil, "", "", nil, err
 	}
 	if cfg == nil {
-		return nil, "", "", nil, fmt.Errorf("no config file found in %s; use --config to specify one, or --schema for single-file validation", cwd)
+		return nil, "", "", nil, fmt.Errorf("no config file found in %s; use --config to specify one, --schema for single-file validation, or --config-from-vscode to use VS Code settings", cwd)
 	}
 	return cfg, filepath.Dir(cfgPath), cfgPath, nil, nil
 }

@@ -1,17 +1,15 @@
 # Sval schema validator
 
-Sval is a CLI tool for validating structured files against JSON Schema, designed for use in content respositories, documentation sites, data-as-code projects, and CI pipelines.
+Sval is a CLI tool for validating structured files against JSON Schema, designed for use in content repositories, documentation sites, data-as-code projects, and CI pipelines.
 
-It supports JSON, YAML, and TOML documents, as well as Markdown frontmatter.
+It supports JSON, YAML, and TOML documents, as well as Markdown frontmatter. It is distributed as a single static binary with no runtime dependencies, and is designed for fast startup times and predictable, explicit behaviour.
 
-Typical use cases include:
+Use cases include:
 
 - validating metadata in Markdown notes or content repos
 - enforcing structure in YAML/TOML config files
 - running schema checks in CI pipelines
 - catching invalid data early in mixed-format repositories
-
-Sval is distributed as a single static binary and has no runtime dependencies.
 
 ## Scope
 
@@ -26,48 +24,52 @@ File type | Behaviour
 
 It does **not** validate Markdown body content.
 
-### Design Principles
-
-- Single static binary
-- No runtime dependencies
-- Predictable behaviour over magic
-- Explicit configuration
-- Fast startup and execution (CI-friendly)
-
-## Features
+### Features
 
 - Validation
-  - [x] JSON Schema validation
-  - [x] Supports JSON, YAML, TOML, Markdown frontmatter
-  - [x] Clear, deterministic error reporting
-  - [x] Machine-readable output (--json)
+  - JSON Schema validation
+  - JSON, YAML, TOML, and Markdown frontmatter
+  - Clear, deterministic error reporting
+  - Machine-readable output (`--json`)
 - File handling
-  - [x] Explicit config file (`--config` flag or auto-discovery)
-  - [x] Glob-based rule matching (doublestar patterns per rule)
-  - [x] Directory and recursive validation (patterns expand recursively)
-  - [x] Ignore support (config `ignore` patterns, no `.gitignore` reading)
+  - Explicit config file (`--config` flag or auto-discovery)
+  - Glob-based rule matching (doublestar patterns per rule)
+  - Recursive validation (patterns expand recursively)
+  - Ignore patterns from config file
 - Schema handling
-  - [x] Local $ref resolution (relative to schema file)
-  - [x] Remote $ref resolution
+  - Local `$ref` resolution (relative to schema file)
+  - Remote `$ref` resolution
 - CLI ergonomics
-  - [x] Fail-fast mode (`--fail-fast`)
-  - [x] Verbosity control (`--verbosity`, and shortcuts for `--quiet` / `--verbose` / `--summary` / `--diag`)
-  - [x] Stable exit codes for CI
+  - Fail-fast mode (`--fail-fast`)
+  - Verbosity control (`--verbosity`, with shortcuts `--quiet`, `--verbose`, `--summary`, `--diag`)
+  - Stable exit codes
 - Git integration
-  - [x] Validate changed files (--changed)
-  - [x] Validate staged paths (--staged-paths)
-- Future features
-  - [ ] Watch mode for local development
-  - [ ] Option to ignore files ignored by .gitignore
-  - [ ] Schema bundling/caching
+  - Validate changed files (`--changed`)
+  - Validate staged paths (`--staged-paths`)
+
+## Exit codes
+
+Code | Meaning
+--- | ---
+`0` | All validated files are valid, or no files matched any rule
+`1` | One or more files failed validation
+`2` | Usage error or unexpected failure
 
 ## Examples
 
 Validate a single file against a schema:
 
 ```bash
-sval validate ./path/to/file --schema ./path/to/schema.json
+sval validate ./path/to/file.yaml --schema ./path/to/schema.json
 ```
+
+Validate all files matched by a config file:
+
+```bash
+sval validate --config .svalconfig.yaml
+```
+
+When no `--config` flag is provided, sval looks for a config file in the current directory automatically - see [Configuration](#configuration).
 
 ## Git integration
 
@@ -92,19 +94,22 @@ Validate everything staged in the index:
 sval validate --staged-paths
 ```
 
-> `--staged-paths` validates the **on-disk** content of staged files, not the indexed blob. If you have unstaged edits to a staged file, those will be seen too. For strict pre-commit checks, wrap the call with `git stash --keep-index` / `git stash pop`, or use the positional-args recipe below.
+> `--staged-paths` validates the **on-disk** content of staged files, not the indexed blob. If you have unstaged edits to a staged file, those will be seen too. For strict pre-commit checks, see the [Pre-commit hook](#pre-commit-hook) section below, or wrap the call with `git stash --keep-index` / `git stash pop`.
 
 ### Pre-commit hook
 
-For use with [pre-commit](https://pre-commit.com/) or other similar tools, prefer passing the staged file list as positional arguments - pre-commit already isolates the indexed content for you:
+For use with [pre-commit](https://pre-commit.com/) or other tools that pass staged filenames as arguments, sval works without any special configuration - pre-commit already isolates the indexed content for you:
 
 ```yaml
-# .pre-commit-hooks.yaml
-- id: sval
-  name: sval
-  entry: sval validate
-  language: system
-  pass_filenames: true
+# .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: sval
+        name: sval
+        entry: sval validate
+        language: system
+        pass_filenames: true
 ```
 
 ## Configuration
@@ -155,3 +160,4 @@ If no frontmatter block is detected, Sval treats Markdown input as an empty docu
 1. Clone this repository
 2. Open the repository in Visual Studio Code
 3. When you see the prompt "Folder contains a Dev Container configuration file", click "Reopen in Container", or select "Dev Containers: Reopen in Container" from the Command Palette (Ctrl+Shift+P)
+4. This repository uses `just` as a task runner. Run `just --list` to see available recipes
