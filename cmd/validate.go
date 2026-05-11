@@ -427,7 +427,7 @@ func (r *reporter) fileOK(path string) {
 	if r.json || r.level < verbosityVerbose {
 		return
 	}
-	fmt.Fprintf(r.out, "OK: %s\n", path)
+	_, _ = fmt.Fprintf(r.out, "OK: %s\n", path)
 }
 
 // fileError prints a per-file validation error. Default+ only (suppressed by
@@ -436,7 +436,7 @@ func (r *reporter) fileError(err error) {
 	if r.json || r.level < verbosityDefault {
 		return
 	}
-	fmt.Fprintln(r.err, err)
+	_, _ = fmt.Fprintln(r.err, err)
 }
 
 // ruleExpanded reports how many files a glob pattern matched. Verbose+ only.
@@ -444,7 +444,7 @@ func (r *reporter) ruleExpanded(pattern string, n int) {
 	if r.json || r.level < verbosityVerbose {
 		return
 	}
-	fmt.Fprintf(r.err, "pattern %q matched %d file(s)\n", pattern, n)
+	_, _ = fmt.Fprintf(r.err, "pattern %q matched %d file(s)\n", pattern, n)
 }
 
 // diag emits a diagnostic message. Diag level only.
@@ -452,7 +452,7 @@ func (r *reporter) diag(format string, args ...any) {
 	if r.json || r.level < verbosityDiag {
 		return
 	}
-	fmt.Fprintf(r.err, "diag: "+format+"\n", args...)
+	_, _ = fmt.Fprintf(r.err, "diag: "+format+"\n", args...)
 }
 
 // summary emits the aggregate count line. Suppressed below summary level. At
@@ -467,22 +467,22 @@ func (r *reporter) summary(validated, skipped, failed int) {
 		return
 	}
 	if failed > 0 {
-		fmt.Fprintf(r.out, "Validated %d file(s), skipped %d, failed %d.\n", validated, skipped, failed)
+		_, _ = fmt.Fprintf(r.out, "Validated %d file(s), skipped %d, failed %d.\n", validated, skipped, failed)
 		return
 	}
-	fmt.Fprintf(r.out, "Validated %d file(s), skipped %d. All files are valid.\n", validated, skipped)
+	_, _ = fmt.Fprintf(r.out, "Validated %d file(s), skipped %d. All files are valid.\n", validated, skipped)
 }
 
 // jsonResult writes a single validator result as one NDJSON line.
 func (r *reporter) jsonResult(result any) {
 	// json.Marshal of validator.Result cannot fail for the values we produce.
 	out, _ := json.Marshal(result)
-	fmt.Fprintln(r.out, string(out))
+	_, _ = fmt.Fprintln(r.out, string(out))
 }
 
 // jsonError writes a system error as a single-line JSON object.
 func (r *reporter) jsonError(err error) {
 	// json.Marshal of a map[string]string cannot fail.
 	out, _ := json.Marshal(map[string]string{"error": err.Error()})
-	fmt.Fprintln(r.out, string(out))
+	_, _ = fmt.Fprintln(r.out, string(out))
 }
