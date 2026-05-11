@@ -42,7 +42,7 @@ type ValidationResult struct {
 func ValidatePath(filePath string, schemaPath string) error {
 	schema, err := loadSchema(schemaPath)
 	if err != nil {
-		return fmt.Errorf("load schema: %v", err)
+		return fmt.Errorf("load schema: %w", err)
 	}
 	return ValidateFile(filePath, schema)
 }
@@ -53,7 +53,7 @@ func ValidatePath(filePath string, schemaPath string) error {
 func ValidatePathResult(filePath string, schemaPath string) (*ValidationResult, error) {
 	schema, err := loadSchema(schemaPath)
 	if err != nil {
-		return nil, fmt.Errorf("load schema: %v", err)
+		return nil, fmt.Errorf("load schema: %w", err)
 	}
 	return validateFileResult(filePath, schema)
 }
@@ -90,7 +90,7 @@ func (sc *SchemaCache) compile(schemaPath string) (*jsonschema.Schema, error) {
 func (sc *SchemaCache) ValidatePath(filePath, schemaPath string) error {
 	schema, err := sc.compile(schemaPath)
 	if err != nil {
-		return fmt.Errorf("load schema: %v", err)
+		return fmt.Errorf("load schema: %w", err)
 	}
 	return ValidateFile(filePath, schema)
 }
@@ -99,7 +99,7 @@ func (sc *SchemaCache) ValidatePath(filePath, schemaPath string) error {
 func (sc *SchemaCache) ValidatePathResult(filePath, schemaPath string) (*ValidationResult, error) {
 	schema, err := sc.compile(schemaPath)
 	if err != nil {
-		return nil, fmt.Errorf("load schema: %v", err)
+		return nil, fmt.Errorf("load schema: %w", err)
 	}
 	return validateFileResult(filePath, schema)
 }
@@ -131,7 +131,7 @@ func ValidateFile(path string, schema *jsonschema.Schema) error {
 func validateFileResult(path string, schema *jsonschema.Schema) (*ValidationResult, error) {
 	docs, err := loadDocumentsForValidation(path)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %v", path, err)
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 
 	var allErrors []ValidationError
@@ -229,7 +229,7 @@ func compileSchema(c *jsonschema.Compiler, path string) (*jsonschema.Schema, err
 	}
 	schema, err := c.Compile(loc)
 	if err != nil {
-		return nil, fmt.Errorf("parse schema: %v", err)
+		return nil, fmt.Errorf("parse schema: %w", err)
 	}
 	return schema, nil
 }

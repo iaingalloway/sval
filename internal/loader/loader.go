@@ -63,7 +63,7 @@ func LoadFrontmatterDocuments(path string) ([]*Document, error) {
 		if errors.Is(err, errFrontmatterNotFound) {
 			return []*Document{{}}, nil
 		}
-		return nil, fmt.Errorf("failed to parse frontmatter: %v", err)
+		return nil, fmt.Errorf("failed to parse frontmatter: %w", err)
 	}
 	if len(sections) == 0 {
 		return []*Document{{}}, nil
@@ -78,7 +78,7 @@ func LoadFrontmatterDocuments(path string) ([]*Document, error) {
 		}
 		docs, err := parseFrontmatterSectionWithIndex(section, docIndex)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse frontmatter: %v", err)
+			return nil, fmt.Errorf("failed to parse frontmatter: %w", err)
 		}
 		allDocs = append(allDocs, docs...)
 		docIndex += len(docs)
@@ -115,7 +115,7 @@ func LoadYAMLDocuments(path string) ([]*Document, error) {
 
 	docs, err := parseYAMLDocuments(content, 1)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse yaml: %v", err)
+		return nil, fmt.Errorf("failed to parse yaml: %w", err)
 	}
 	return docs, nil
 }
@@ -131,7 +131,7 @@ func LoadJSON(path string) (*Document, error) {
 
 	doc, err := parseJSONDocument(content)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse json: %v", err)
+		return nil, fmt.Errorf("failed to parse json: %w", err)
 	}
 	return doc, nil
 }
@@ -147,7 +147,7 @@ func LoadTOML(path string) (*Document, error) {
 
 	doc, err := parseTOMLDocument(content)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse toml: %v", err)
+		return nil, fmt.Errorf("failed to parse toml: %w", err)
 	}
 	return doc, nil
 }
