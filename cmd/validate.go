@@ -110,11 +110,14 @@ func NewValidateCmd() *cobra.Command {
 				return runFileList(rep, args, schemaPath, nil, "", failFast)
 			}
 
-			cfg, cfgDir, cfgPath, err := resolveConfig(configPath, configFromVSCode)
+			cfg, cfgDir, cfgPath, warnings, err := resolveConfig(configPath, configFromVSCode)
 			if err != nil {
 				return err
 			}
 			rep.diag("config: %s", cfgPath)
+			for _, w := range warnings {
+				rep.diag("vscode config: skipping schema with unsupported URL scheme: %s", w)
+			}
 
 			if changedFlag || stagedFlag {
 				cwd, err := os.Getwd()
@@ -246,47 +249,48 @@ func runFileList(rep *reporter, files []string, schemaPath string, cfg *config.C
 
 // resolveConfig loads a Config from --config, --config-from-vscode, or auto-discovery.
 // Returns the config, the directory it was loaded from (for resolving relative
-// paths), and the path of the config file/source itself (for diagnostics).
-func resolveConfig(configFlag string, fromVSCode bool) (*config.Config, string, string, error) {
+// paths), the path of the config file/source itself (for diagnostics), any
+// non-fatal warnings, and an error.
+func resolveConfig(configFlag string, fromVSCode bool) (*config.Config, string, string, []string, error) {
 	if configFlag != "" {
 		abs, err := filepath.Abs(configFlag)
 		if err != nil {
-			return nil, "", "", fmt.Errorf("resolve config path: %w", err)
+			return nil, "", "", nil, fmt.Errorf("resolve config path: %w", err)
 		}
 		cfg, err := config.Load(abs)
 		if err != nil {
-			return nil, "", "", fmt.Errorf("load config: %w", err)
+			return nil, "", "", nil, fmt.Errorf("load config: %w", err)
 		}
-		return cfg, filepath.Dir(abs), abs, nil
+		return cfg, filepath.Dir(abs), abs, nil, nil
 	}
 
 	if fromVSCode {
 		cwd, err := os.Getwd()
 		if err != nil {
-			return nil, "", "", fmt.Errorf("get working directory: %w", err)
+			return nil, "", "", nil, fmt.Errorf("get working directory: %w", err)
 		}
 		settingsPath := filepath.Join(cwd, ".vscode", "settings.json")
-		cfg, err := config.FromVSCode(settingsPath)
+		cfg, warnings, err := config.FromVSCode(settingsPath)
 		if err != nil {
-			return nil, "", "", fmt.Errorf("load vscode config: %w", err)
+			return nil, "", "", nil, fmt.Errorf("load vscode config: %w", err)
 		}
 		// FromVSCode resolves rule paths to absolute itself; cwd is returned
 		// as the base for resolving any relative ignore patterns.
-		return cfg, cwd, settingsPath, nil
+		return cfg, cwd, settingsPath, warnings, nil
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, "", "", fmt.Errorf("get working directory: %w", err)
+		return nil, "", "", nil, fmt.Errorf("get working directory: %w", err)
 	}
 	cfgPath, cfg, err := config.Discover(cwd)
 	if err != nil {
-		return nil, "", "", err
+		return nil, "", "", nil, err
 	}
 	if cfg == nil {
-		return nil, "", "", fmt.Errorf("no config file found in %s; use --config to specify one, or --schema for single-file validation", cwd)
+		return nil, "", "", nil, fmt.Errorf("no config file found in %s; use --config to specify one, or --schema for single-file validation", cwd)
 	}
-	return cfg, filepath.Dir(cfgPath), cfgPath, nil
+	return cfg, filepath.Dir(cfgPath), cfgPath, nil, nil
 }
 
 // runUsingConfig expands each rule's glob pattern, filters ignored files, and validates.

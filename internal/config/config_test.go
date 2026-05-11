@@ -184,7 +184,7 @@ func TestFromVSCodeBasic(t *testing.T) {
   }
 }`)
 
-	cfg, err := FromVSCode(settingsPath)
+	cfg, _, err := FromVSCode(settingsPath)
 	if err != nil {
 		t.Fatalf("FromVSCode() error: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestFromVSCodeFileScheme(t *testing.T) {
   }
 }`)
 
-	cfg, err := FromVSCode(settingsPath)
+	cfg, _, err := FromVSCode(settingsPath)
 	if err != nil {
 		t.Fatalf("FromVSCode() error: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestFromVSCodeHTTPSSchemaPreserved(t *testing.T) {
   }
 }`)
 
-	cfg, err := FromVSCode(settingsPath)
+	cfg, _, err := FromVSCode(settingsPath)
 	if err != nil {
 		t.Fatalf("FromVSCode() error: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestFromVSCodeUnsupportedSchemeSkipped(t *testing.T) {
   }
 }`)
 
-	cfg, err := FromVSCode(settingsPath)
+	cfg, warnings, err := FromVSCode(settingsPath)
 	if err != nil {
 		t.Fatalf("FromVSCode() error: %v", err)
 	}
@@ -256,20 +256,23 @@ func TestFromVSCodeUnsupportedSchemeSkipped(t *testing.T) {
 	if len(cfg.Rules) != 1 {
 		t.Fatalf("expected 1 rule (unsupported scheme skipped), got %d: %+v", len(cfg.Rules), cfg.Rules)
 	}
+	if len(warnings) != 1 || warnings[0] != "gcs://bucket/schema.json" {
+		t.Fatalf("expected 1 warning for gcs:// schema, got: %v", warnings)
+	}
 }
 
 func TestFromVSCodeMissingYAMLSchemas(t *testing.T) {
 	dir := t.TempDir()
 	settingsPath := buildVSCodeSettings(t, dir, `{"editor.tabSize": 2}`)
 
-	_, err := FromVSCode(settingsPath)
+	_, _, err := FromVSCode(settingsPath)
 	if err == nil {
 		t.Fatal("expected error for missing yaml.schemas key")
 	}
 }
 
 func TestFromVSCodeMissingFile(t *testing.T) {
-	_, err := FromVSCode(filepath.Join(t.TempDir(), "missing.json"))
+	_, _, err := FromVSCode(filepath.Join(t.TempDir(), "missing.json"))
 	if err == nil {
 		t.Fatal("expected error for missing file")
 	}
@@ -285,7 +288,7 @@ func TestFromVSCodeBaseDirAboveVSCode(t *testing.T) {
   }
 }`)
 
-	cfg, err := FromVSCode(settingsPath)
+	cfg, _, err := FromVSCode(settingsPath)
 	if err != nil {
 		t.Fatalf("FromVSCode() error: %v", err)
 	}

@@ -94,45 +94,47 @@ func Discover(dir string) (string, *Config, error) {
 // mapping to a Config. Schema paths are resolved relative to the directory
 // containing the .vscode folder. Remote (http/https) schemas are preserved;
 // file:// schemas are resolved to local paths. Schemas with unsupported URL
-// schemes are skipped.
-func FromVSCode(settingsPath string) (*Config, error) {
+// schemes are skipped; their keys are returned as warnings.
+func FromVSCode(settingsPath string) (*Config, []string, error) {
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
-		return nil, fmt.Errorf("read vscode settings: %w", err)
+		return nil, nil, fmt.Errorf("read vscode settings: %w", err)
 	}
 
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("parse vscode settings: %w", err)
+		return nil, nil, fmt.Errorf("parse vscode settings: %w", err)
 	}
 
 	schemasNode, ok := raw["yaml.schemas"]
 	if !ok {
-		return nil, fmt.Errorf("yaml.schemas key not found in %s", settingsPath)
+		return nil, nil, fmt.Errorf("yaml.schemas key not found in %s", settingsPath)
 	}
 
 	// yaml.schemas maps schema path/URL → []glob or glob
 	var schemaMap map[string]json.RawMessage
 	if err := json.Unmarshal(schemasNode, &schemaMap); err != nil {
-		return nil, fmt.Errorf("parse yaml.schemas: %w", err)
+		return nil, nil, fmt.Errorf("parse yaml.schemas: %w", err)
 	}
 
 	baseDir := vscodeBaseDir(settingsPath)
 
 	var rules []Rule
+	var warnings []string
 	for rawSchema, patternsRaw := range schemaMap {
-		schemaPath, skip, err := normalizeVSCodeSchema(rawSchema, baseDir)
+		schemaPath, skippedKey, err := normalizeVSCodeSchema(rawSchema, baseDir)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		if skip {
+		if skippedKey != "" {
+			warnings = append(warnings, skippedKey)
 			continue
 		}
 
 		// patterns can be a JSON string or array of strings
 		patterns, err := parseVSCodePatterns(patternsRaw)
 		if err != nil {
-			return nil, fmt.Errorf("parse patterns for schema %q: %w", rawSchema, err)
+			return nil, nil, fmt.Errorf("parse patterns for schema %q: %w", rawSchema, err)
 		}
 
 		for _, p := range patterns {
@@ -147,7 +149,7 @@ func FromVSCode(settingsPath string) (*Config, error) {
 		}
 	}
 
-	return &Config{Rules: rules}, nil
+	return &Config{Rules: rules}, warnings, nil
 }
 
 func vscodeBaseDir(settingsPath string) string {
@@ -159,33 +161,34 @@ func vscodeBaseDir(settingsPath string) string {
 }
 
 // normalizeVSCodeSchema resolves a schema path/URL from VS Code settings.
-// Returns (resolved, skip, error). skip=true means the schema should be
-// silently ignored (unsupported URL scheme).
-func normalizeVSCodeSchema(rawSchema string, baseDir string) (string, bool, error) {
+// Returns (resolved, skippedKey, error). skippedKey is non-empty when the
+// schema has an unsupported URL scheme and should be skipped; it contains the
+// original key for use in diagnostic messages.
+func normalizeVSCodeSchema(rawSchema string, baseDir string) (string, string, error) {
 	trimmed := strings.TrimSpace(rawSchema)
 	if trimmed == "" {
-		return "", false, fmt.Errorf("empty schema path in vscode settings")
+		return "", "", fmt.Errorf("empty schema path in vscode settings")
 	}
 
 	if parsed, err := url.Parse(trimmed); err == nil && parsed.Scheme != "" {
 		switch parsed.Scheme {
 		case "file":
 			if parsed.Path == "" {
-				return "", false, fmt.Errorf("schema %q has empty file path", rawSchema)
+				return "", "", fmt.Errorf("schema %q has empty file path", rawSchema)
 			}
-			return filepath.Clean(parsed.Path), false, nil
+			return filepath.Clean(parsed.Path), "", nil
 		case "http", "https":
-			return parsed.String(), false, nil
+			return parsed.String(), "", nil
 		default:
-			// unsupported scheme — skip silently
-			return "", true, nil
+			// unsupported scheme - report the key so the caller can warn
+			return "", rawSchema, nil
 		}
 	}
 
 	if filepath.IsAbs(trimmed) {
-		return filepath.Clean(trimmed), false, nil
+		return filepath.Clean(trimmed), "", nil
 	}
-	return filepath.Clean(filepath.Join(baseDir, trimmed)), false, nil
+	return filepath.Clean(filepath.Join(baseDir, trimmed)), "", nil
 }
 
 func parseVSCodePatterns(raw json.RawMessage) ([]string, error) {
