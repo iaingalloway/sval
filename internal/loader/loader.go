@@ -38,20 +38,6 @@ func (d *Document) PointerPosition(ptr string) (Position, bool) {
 	return pos, ok
 }
 
-func LoadFrontmatter(path string) (*Document, error) {
-	docs, err := LoadFrontmatterDocuments(path)
-	if err != nil {
-		return nil, err
-	}
-	if len(docs) == 1 {
-		if docs[0] == nil {
-			return &Document{}, nil
-		}
-		return docs[0], nil
-	}
-	return &Document{Data: documentsDataSlice(docs)}, nil
-}
-
 func LoadFrontmatterDocuments(path string) ([]*Document, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -88,20 +74,6 @@ func LoadFrontmatterDocuments(path string) ([]*Document, error) {
 		return []*Document{{}}, nil
 	}
 	return allDocs, nil
-}
-
-func LoadYAML(path string) (*Document, error) {
-	docs, err := LoadYAMLDocuments(path)
-	if err != nil {
-		return nil, err
-	}
-	if len(docs) == 1 {
-		if docs[0] == nil {
-			return &Document{}, nil
-		}
-		return docs[0], nil
-	}
-	return &Document{Data: documentsDataSlice(docs)}, nil
 }
 
 func LoadYAMLDocuments(path string) ([]*Document, error) {
@@ -384,18 +356,6 @@ func parseTOMLDocument(content []byte) (*Document, error) {
 		return nil, err
 	}
 	return &Document{Data: data}, nil
-}
-
-func documentsDataSlice(docs []*Document) []any {
-	items := make([]any, 0, len(docs))
-	for _, doc := range docs {
-		if doc == nil {
-			items = append(items, nil)
-			continue
-		}
-		items = append(items, doc.Data)
-	}
-	return items
 }
 
 func collectPositions(node *yaml.Node, ptr string, offset int, positions map[string]Position) {

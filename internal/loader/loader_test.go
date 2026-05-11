@@ -18,10 +18,14 @@ func TestLoadFrontmatter(t *testing.T) {
 
 	t.Run("yaml success", func(t *testing.T) {
 		path := writeTempFile(t, dir, "post.md", "---\nname: example\ncount: 2\n---\ncontent")
-		doc, err := LoadFrontmatter(path)
+		docs, err := LoadFrontmatterDocuments(path)
 		if err != nil {
-			t.Fatalf("LoadFrontmatter() unexpected error: %v", err)
+			t.Fatalf("LoadFrontmatterDocuments() unexpected error: %v", err)
 		}
+		if len(docs) != 1 {
+			t.Fatalf("expected 1 document, got %d", len(docs))
+		}
+		doc := docs[0]
 		data, ok := doc.Data.(map[string]any)
 		if !ok {
 			t.Fatalf("expected map data, got %T", doc.Data)
@@ -43,10 +47,14 @@ func TestLoadFrontmatter(t *testing.T) {
 
 	t.Run("json success", func(t *testing.T) {
 		path := writeTempFile(t, dir, "post-json.md", "---\n{\"name\":\"example\",\"count\":2}\n---\ncontent")
-		doc, err := LoadFrontmatter(path)
+		docs, err := LoadFrontmatterDocuments(path)
 		if err != nil {
-			t.Fatalf("LoadFrontmatter() unexpected error: %v", err)
+			t.Fatalf("LoadFrontmatterDocuments() unexpected error: %v", err)
 		}
+		if len(docs) != 1 {
+			t.Fatalf("expected 1 document, got %d", len(docs))
+		}
+		doc := docs[0]
 		data, ok := doc.Data.(map[string]any)
 		if !ok {
 			t.Fatalf("expected map data, got %T", doc.Data)
@@ -58,24 +66,20 @@ func TestLoadFrontmatter(t *testing.T) {
 
 	t.Run("multiple blocks are separate documents", func(t *testing.T) {
 		path := writeTempFile(t, dir, "post-multi.md", "---\nname: first\n---\n+++\ncount = 7\n+++\ncontent")
-		doc, err := LoadFrontmatter(path)
+		docs, err := LoadFrontmatterDocuments(path)
 		if err != nil {
-			t.Fatalf("LoadFrontmatter() unexpected error: %v", err)
+			t.Fatalf("LoadFrontmatterDocuments() unexpected error: %v", err)
 		}
-		data, ok := doc.Data.([]any)
+		if len(docs) != 2 {
+			t.Fatalf("expected 2 documents, got %d", len(docs))
+		}
+		doc1, ok := docs[0].Data.(map[string]any)
 		if !ok {
-			t.Fatalf("expected sequence data, got %T", doc.Data)
+			t.Fatalf("expected first document map, got %T", docs[0].Data)
 		}
-		if len(data) != 2 {
-			t.Fatalf("expected 2 documents, got %d", len(data))
-		}
-		doc1, ok := data[0].(map[string]any)
+		doc2, ok := docs[1].Data.(map[string]any)
 		if !ok {
-			t.Fatalf("expected first document map, got %T", data[0])
-		}
-		doc2, ok := data[1].(map[string]any)
-		if !ok {
-			t.Fatalf("expected second document map, got %T", data[1])
+			t.Fatalf("expected second document map, got %T", docs[1].Data)
 		}
 		if name, ok := doc1["name"].(string); !ok || name != "first" {
 			t.Fatalf("unexpected name: %#v", doc1["name"])
@@ -87,10 +91,14 @@ func TestLoadFrontmatter(t *testing.T) {
 
 	t.Run("toml success", func(t *testing.T) {
 		path := writeTempFile(t, dir, "post-toml.md", "+++\nname = \"example\"\ncount = 2\n+++\ncontent")
-		doc, err := LoadFrontmatter(path)
+		docs, err := LoadFrontmatterDocuments(path)
 		if err != nil {
-			t.Fatalf("LoadFrontmatter() unexpected error: %v", err)
+			t.Fatalf("LoadFrontmatterDocuments() unexpected error: %v", err)
 		}
+		if len(docs) != 1 {
+			t.Fatalf("expected 1 document, got %d", len(docs))
+		}
+		doc := docs[0]
 		data, ok := doc.Data.(map[string]any)
 		if !ok {
 			t.Fatalf("expected map data, got %T", doc.Data)
@@ -101,7 +109,7 @@ func TestLoadFrontmatter(t *testing.T) {
 	})
 
 	t.Run("missing file", func(t *testing.T) {
-		_, err := LoadFrontmatter(filepath.Join(dir, "missing.md"))
+		_, err := LoadFrontmatterDocuments(filepath.Join(dir, "missing.md"))
 		if err == nil || !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("expected os.ErrNotExist, got %v", err)
 		}
@@ -109,7 +117,7 @@ func TestLoadFrontmatter(t *testing.T) {
 
 	t.Run("invalid frontmatter", func(t *testing.T) {
 		path := writeTempFile(t, dir, "broken.md", "---\nname: [\n---\nbody")
-		_, err := LoadFrontmatter(path)
+		_, err := LoadFrontmatterDocuments(path)
 		if err == nil {
 			t.Fatalf("expected error, got nil")
 		}
@@ -124,10 +132,14 @@ func TestLoadYAML(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		path := writeTempFile(t, dir, "note.yaml", "name: example\ncount: 3\n")
-		doc, err := LoadYAML(path)
+		docs, err := LoadYAMLDocuments(path)
 		if err != nil {
-			t.Fatalf("LoadYAML() unexpected error: %v", err)
+			t.Fatalf("LoadYAMLDocuments() unexpected error: %v", err)
 		}
+		if len(docs) != 1 {
+			t.Fatalf("expected 1 document, got %d", len(docs))
+		}
+		doc := docs[0]
 		data, ok := doc.Data.(map[string]any)
 		if !ok {
 			t.Fatalf("expected map data, got %T", doc.Data)
@@ -149,7 +161,7 @@ func TestLoadYAML(t *testing.T) {
 
 	t.Run("invalid yaml", func(t *testing.T) {
 		path := writeTempFile(t, dir, "broken.yaml", "name: [broken\n")
-		_, err := LoadYAML(path)
+		_, err := LoadYAMLDocuments(path)
 		if err == nil {
 			t.Fatalf("expected error, got nil")
 		}
@@ -160,24 +172,20 @@ func TestLoadYAML(t *testing.T) {
 
 	t.Run("multiple documents are separate", func(t *testing.T) {
 		path := writeTempFile(t, dir, "multi.yaml", "name: first\n---\ncount: 9\n")
-		doc, err := LoadYAML(path)
+		docs, err := LoadYAMLDocuments(path)
 		if err != nil {
-			t.Fatalf("LoadYAML() unexpected error: %v", err)
+			t.Fatalf("LoadYAMLDocuments() unexpected error: %v", err)
 		}
-		data, ok := doc.Data.([]any)
+		if len(docs) != 2 {
+			t.Fatalf("expected 2 documents, got %d", len(docs))
+		}
+		doc1, ok := docs[0].Data.(map[string]any)
 		if !ok {
-			t.Fatalf("expected sequence data, got %T", doc.Data)
+			t.Fatalf("expected first document map, got %T", docs[0].Data)
 		}
-		if len(data) != 2 {
-			t.Fatalf("expected 2 documents, got %d", len(data))
-		}
-		doc1, ok := data[0].(map[string]any)
+		doc2, ok := docs[1].Data.(map[string]any)
 		if !ok {
-			t.Fatalf("expected first document map, got %T", data[0])
-		}
-		doc2, ok := data[1].(map[string]any)
-		if !ok {
-			t.Fatalf("expected second document map, got %T", data[1])
+			t.Fatalf("expected second document map, got %T", docs[1].Data)
 		}
 		if name, ok := doc1["name"].(string); !ok || name != "first" {
 			t.Fatalf("unexpected name: %#v", doc1["name"])
@@ -188,7 +196,7 @@ func TestLoadYAML(t *testing.T) {
 	})
 
 	t.Run("missing file", func(t *testing.T) {
-		_, err := LoadYAML(filepath.Join(dir, "missing.yaml"))
+		_, err := LoadYAMLDocuments(filepath.Join(dir, "missing.yaml"))
 		if err == nil || !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("expected os.ErrNotExist, got %v", err)
 		}
@@ -196,12 +204,15 @@ func TestLoadYAML(t *testing.T) {
 
 	t.Run("empty file", func(t *testing.T) {
 		path := writeTempFile(t, dir, "empty.yaml", "")
-		doc, err := LoadYAML(path)
+		docs, err := LoadYAMLDocuments(path)
 		if err != nil {
-			t.Fatalf("LoadYAML() unexpected error: %v", err)
+			t.Fatalf("LoadYAMLDocuments() unexpected error: %v", err)
 		}
-		if doc.Data != nil {
-			t.Fatalf("expected nil data for empty file, got %#v", doc.Data)
+		if len(docs) != 1 {
+			t.Fatalf("expected 1 document, got %d", len(docs))
+		}
+		if docs[0].Data != nil {
+			t.Fatalf("expected nil data for empty file, got %#v", docs[0].Data)
 		}
 	})
 }
@@ -305,27 +316,23 @@ func TestLoadTOML(t *testing.T) {
 func TestLoadFixtures(t *testing.T) {
 	t.Run("yaml file with mixed value types across docs", func(t *testing.T) {
 		path := fixturePath("yaml", "multi-docs-mixed-types.yaml")
-		doc, err := LoadYAML(path)
+		docs, err := LoadYAMLDocuments(path)
 		if err != nil {
-			t.Fatalf("LoadYAML() unexpected error: %v", err)
+			t.Fatalf("LoadYAMLDocuments() unexpected error: %v", err)
 		}
-		seq, ok := doc.Data.([]any)
+		if len(docs) != 2 {
+			t.Fatalf("expected 2 documents, got %d", len(docs))
+		}
+		m1, ok := docs[0].Data.(map[string]any)
 		if !ok {
-			t.Fatalf("expected sequence data, got %T", doc.Data)
-		}
-		if len(seq) != 2 {
-			t.Fatalf("expected 2 documents, got %d", len(seq))
-		}
-		m1, ok := seq[0].(map[string]any)
-		if !ok {
-			t.Fatalf("expected map for doc 1, got %T", seq[0])
+			t.Fatalf("expected map for doc 1, got %T", docs[0].Data)
 		}
 		if value, ok := m1["value"].(int); !ok || value != 1 {
 			t.Fatalf("expected int value 1 in doc 1, got %#v", m1["value"])
 		}
-		m2, ok := seq[1].(map[string]any)
+		m2, ok := docs[1].Data.(map[string]any)
 		if !ok {
-			t.Fatalf("expected map for doc 2, got %T", seq[1])
+			t.Fatalf("expected map for doc 2, got %T", docs[1].Data)
 		}
 		if value, ok := m2["value"].(string); !ok || value != "not-a-number" {
 			t.Fatalf("expected string value \"not-a-number\" in doc 2, got %#v", m2["value"])
@@ -334,7 +341,7 @@ func TestLoadFixtures(t *testing.T) {
 
 	t.Run("md file with multi-block error in second block", func(t *testing.T) {
 		path := fixturePath("frontmatter", "multi-blocks-error.md")
-		_, err := LoadFrontmatter(path)
+		_, err := LoadFrontmatterDocuments(path)
 		if err == nil {
 			t.Fatalf("expected error, got nil")
 		}
@@ -347,10 +354,14 @@ func TestLoadFixtures(t *testing.T) {
 	})
 	t.Run("leading blank lines before frontmatter", func(t *testing.T) {
 		path := fixturePath("frontmatter", "leading-blank-lines.md")
-		doc, err := LoadFrontmatter(path)
+		docs, err := LoadFrontmatterDocuments(path)
 		if err != nil {
-			t.Fatalf("LoadFrontmatter() unexpected error: %v", err)
+			t.Fatalf("LoadFrontmatterDocuments() unexpected error: %v", err)
 		}
+		if len(docs) != 1 {
+			t.Fatalf("expected 1 document, got %d", len(docs))
+		}
+		doc := docs[0]
 
 		data, ok := doc.Data.(map[string]any)
 		if !ok {
@@ -371,10 +382,14 @@ func TestLoadFixtures(t *testing.T) {
 
 	t.Run("bom frontmatter", func(t *testing.T) {
 		path := fixturePath("frontmatter", "bom-frontmatter.md")
-		doc, err := LoadFrontmatter(path)
+		docs, err := LoadFrontmatterDocuments(path)
 		if err != nil {
-			t.Fatalf("LoadFrontmatter() unexpected error: %v", err)
+			t.Fatalf("LoadFrontmatterDocuments() unexpected error: %v", err)
 		}
+		if len(docs) != 1 {
+			t.Fatalf("expected 1 document, got %d", len(docs))
+		}
+		doc := docs[0]
 
 		data, ok := doc.Data.(map[string]any)
 		if !ok {
@@ -395,10 +410,14 @@ func TestLoadFixtures(t *testing.T) {
 
 	t.Run("no frontmatter returns empty document", func(t *testing.T) {
 		path := fixturePath("frontmatter", "no-frontmatter.md")
-		doc, err := LoadFrontmatter(path)
+		docs, err := LoadFrontmatterDocuments(path)
 		if err != nil {
-			t.Fatalf("LoadFrontmatter() unexpected error: %v", err)
+			t.Fatalf("LoadFrontmatterDocuments() unexpected error: %v", err)
 		}
+		if len(docs) != 1 {
+			t.Fatalf("expected 1 document, got %d", len(docs))
+		}
+		doc := docs[0]
 		if doc == nil {
 			t.Fatalf("expected non-nil document")
 		}
@@ -409,7 +428,7 @@ func TestLoadFixtures(t *testing.T) {
 
 	t.Run("unterminated frontmatter returns parse error", func(t *testing.T) {
 		path := fixturePath("frontmatter", "unterminated-frontmatter.md")
-		_, err := LoadFrontmatter(path)
+		_, err := LoadFrontmatterDocuments(path)
 		if err == nil {
 			t.Fatalf("expected error, got nil")
 		}
@@ -459,10 +478,14 @@ func TestLoadFixtures(t *testing.T) {
 
 	t.Run("md file with toml-only frontmatter", func(t *testing.T) {
 		path := fixturePath("frontmatter", "toml-only.md")
-		doc, err := LoadFrontmatter(path)
+		docs, err := LoadFrontmatterDocuments(path)
 		if err != nil {
-			t.Fatalf("LoadFrontmatter() unexpected error: %v", err)
+			t.Fatalf("LoadFrontmatterDocuments() unexpected error: %v", err)
 		}
+		if len(docs) != 1 {
+			t.Fatalf("expected 1 document, got %d", len(docs))
+		}
+		doc := docs[0]
 		data, ok := doc.Data.(map[string]any)
 		if !ok {
 			t.Fatalf("expected map data, got %T", doc.Data)
@@ -477,10 +500,14 @@ func TestLoadFixtures(t *testing.T) {
 
 	t.Run("md file with ---toml delimiter", func(t *testing.T) {
 		path := fixturePath("frontmatter", "toml-dash.md")
-		doc, err := LoadFrontmatter(path)
+		docs, err := LoadFrontmatterDocuments(path)
 		if err != nil {
-			t.Fatalf("LoadFrontmatter() unexpected error: %v", err)
+			t.Fatalf("LoadFrontmatterDocuments() unexpected error: %v", err)
 		}
+		if len(docs) != 1 {
+			t.Fatalf("expected 1 document, got %d", len(docs))
+		}
+		doc := docs[0]
 		data, ok := doc.Data.(map[string]any)
 		if !ok {
 			t.Fatalf("expected map data, got %T", doc.Data)
@@ -495,10 +522,14 @@ func TestLoadFixtures(t *testing.T) {
 
 	t.Run("md file with json frontmatter parsed as yaml", func(t *testing.T) {
 		path := fixturePath("frontmatter", "json-frontmatter.md")
-		doc, err := LoadFrontmatter(path)
+		docs, err := LoadFrontmatterDocuments(path)
 		if err != nil {
-			t.Fatalf("LoadFrontmatter() unexpected error: %v", err)
+			t.Fatalf("LoadFrontmatterDocuments() unexpected error: %v", err)
 		}
+		if len(docs) != 1 {
+			t.Fatalf("expected 1 document, got %d", len(docs))
+		}
+		doc := docs[0]
 		data, ok := doc.Data.(map[string]any)
 		if !ok {
 			t.Fatalf("expected map data, got %T", doc.Data)
@@ -513,28 +544,24 @@ func TestLoadFixtures(t *testing.T) {
 
 	t.Run("md file with multiple frontmatter blocks in different formats", func(t *testing.T) {
 		path := fixturePath("frontmatter", "multi-blocks-mixed.md")
-		doc, err := LoadFrontmatter(path)
+		docs, err := LoadFrontmatterDocuments(path)
 		if err != nil {
-			t.Fatalf("LoadFrontmatter() unexpected error: %v", err)
+			t.Fatalf("LoadFrontmatterDocuments() unexpected error: %v", err)
 		}
-		seq, ok := doc.Data.([]any)
-		if !ok {
-			t.Fatalf("expected sequence data, got %T", doc.Data)
+		if len(docs) != 3 {
+			t.Fatalf("expected 3 blocks, got %d", len(docs))
 		}
-		if len(seq) != 3 {
-			t.Fatalf("expected 3 blocks, got %d", len(seq))
-		}
-		m1, ok := seq[0].(map[string]any)
+		m1, ok := docs[0].Data.(map[string]any)
 		if !ok || m1["name"] != "block1" {
-			t.Fatalf("unexpected first block: %#v", seq[0])
+			t.Fatalf("unexpected first block: %#v", docs[0].Data)
 		}
-		m2, ok := seq[1].(map[string]any)
+		m2, ok := docs[1].Data.(map[string]any)
 		if !ok || m2["name"] != "block2" {
-			t.Fatalf("unexpected second block: %#v", seq[1])
+			t.Fatalf("unexpected second block: %#v", docs[1].Data)
 		}
-		m3, ok := seq[2].(map[string]any)
+		m3, ok := docs[2].Data.(map[string]any)
 		if !ok || m3["name"] != "block3" {
-			t.Fatalf("unexpected third block: %#v", seq[2])
+			t.Fatalf("unexpected third block: %#v", docs[2].Data)
 		}
 	})
 }
