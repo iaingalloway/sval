@@ -111,7 +111,7 @@ func TestValidateStaged(t *testing.T) {
 	// Stage the modified good.yaml; untracked stays untracked.
 	gitRun(t, dir, "add", "data/good.yaml")
 
-	_, errOut, err := runValidate(t, "--staged")
+	_, errOut, err := runValidate(t, "--staged-paths")
 	if err == nil {
 		t.Fatal("expected validation failure for staged file")
 	}
@@ -126,7 +126,7 @@ func TestValidateStaged(t *testing.T) {
 func TestValidateChangedStagedExclusive(t *testing.T) {
 	dir := t.TempDir()
 	chdir(t, dir)
-	_, _, err := runValidate(t, "--changed", "--staged")
+	_, _, err := runValidate(t, "--changed", "--staged-paths")
 	if err == nil || !strings.Contains(err.Error(), "cannot be combined") {
 		t.Fatalf("expected exclusivity error, got: %v", err)
 	}
@@ -144,7 +144,7 @@ func TestValidateGitFlagsRejectSchema(t *testing.T) {
 func TestValidateGitFlagsRejectPositional(t *testing.T) {
 	dir := t.TempDir()
 	chdir(t, dir)
-	_, _, err := runValidate(t, "--staged", "foo.yaml")
+	_, _, err := runValidate(t, "--staged-paths", "foo.yaml")
 	if err == nil || !strings.Contains(err.Error(), "positional") {
 		t.Fatalf("expected positional-conflict error, got: %v", err)
 	}

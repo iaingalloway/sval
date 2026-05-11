@@ -55,7 +55,7 @@ It does **not** validate Markdown body content.
   - [x] Stable exit codes for CI
 - Git integration
   - [x] Validate changed files (--changed)
-  - [x] Validate staged files (--staged)
+  - [x] Validate staged paths (--staged-paths)
 - Future features
   - [ ] Watch mode for local development
   - [ ] Option to ignore files ignored by .gitignore
@@ -89,10 +89,10 @@ sval validate --changed --no-untracked
 Validate everything staged in the index:
 
 ```bash
-sval validate --staged
+sval validate --staged-paths
 ```
 
-> `--staged` validates the **on-disk** content of staged files, not the indexed blob. If you have unstaged edits to a staged file, those will be seen too. For strict pre-commit checks, wrap the call with `git stash --keep-index` / `git stash pop`, or use the positional-args recipe below.
+> `--staged-paths` validates the **on-disk** content of staged files, not the indexed blob. If you have unstaged edits to a staged file, those will be seen too. For strict pre-commit checks, wrap the call with `git stash --keep-index` / `git stash pop`, or use the positional-args recipe below.
 
 ### Pre-commit hook
 

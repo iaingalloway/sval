@@ -78,13 +78,13 @@ func NewValidateCmd() *cobra.Command {
 			}
 
 			if changedFlag && stagedFlag {
-				return fmt.Errorf("--changed and --staged cannot be combined")
+				return fmt.Errorf("--changed and --staged-paths cannot be combined")
 			}
 			if (changedFlag || stagedFlag) && schemaPath != "" {
-				return fmt.Errorf("--changed / --staged cannot be combined with --schema")
+				return fmt.Errorf("--changed / --staged-paths cannot be combined with --schema")
 			}
 			if (changedFlag || stagedFlag) && len(args) > 0 {
-				return fmt.Errorf("--changed / --staged cannot be combined with positional file arguments")
+				return fmt.Errorf("--changed / --staged-paths cannot be combined with positional file arguments")
 			}
 			if baseFlag != "" && !changedFlag {
 				return fmt.Errorf("--base requires --changed")
@@ -159,7 +159,7 @@ func NewValidateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&diagAliasFlag, "diagnostic", false, "alias for --diag")
 
 	cmd.Flags().BoolVar(&changedFlag, "changed", false, "validate files changed in the working tree (requires git)")
-	cmd.Flags().BoolVar(&stagedFlag, "staged", false, "validate files staged in the index (requires git; on-disk content)")
+	cmd.Flags().BoolVar(&stagedFlag, "staged-paths", false, "validate on-disk content of files staged in the index (requires git); reads working-tree files, not the indexed blob")
 	cmd.Flags().StringVar(&baseFlag, "base", "", "base ref for --changed (default HEAD)")
 	cmd.Flags().BoolVar(&noUntrackedFlag, "no-untracked", false, "with --changed, exclude untracked files")
 
