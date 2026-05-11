@@ -19,7 +19,9 @@ func main() {
 		// Validation failure: per-file diagnostics already printed.
 		os.Exit(1)
 	}
-	// Usage, configuration, or system error.
-	fmt.Fprintln(os.Stderr, err)
+	// Configuration or system error.
+	if msg := err.Error(); msg != "" {
+		fmt.Fprintln(os.Stderr, msg)
+	}
 	os.Exit(2)
 }

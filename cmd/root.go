@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -25,7 +26,8 @@ func newRootCmd(version string) *cobra.Command {
 				_, err := fmt.Fprintln(cmd.OutOrStdout(), version)
 				return err
 			}
-			return cmd.Help()
+			_ = cmd.Help()
+			return errors.New("")
 		},
 	}
 
