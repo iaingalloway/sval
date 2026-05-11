@@ -474,9 +474,12 @@ func (r *reporter) summary(validated, skipped, failed int) {
 }
 
 // jsonResult writes a single validator result as one NDJSON line.
-func (r *reporter) jsonResult(result any) {
-	// json.Marshal of validator.Result cannot fail for the values we produce.
-	out, _ := json.Marshal(result)
+func (r *reporter) jsonResult(result *validator.ValidationResult) {
+	out, err := json.Marshal(result)
+	if err != nil {
+		r.jsonError(err)
+		return
+	}
 	_, _ = fmt.Fprintln(r.out, string(out))
 }
 
