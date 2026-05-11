@@ -10,9 +10,14 @@ import (
 	"time"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
+	"github.com/santhosh-tekuri/jsonschema/v6/kind"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 
 	"github.com/iaingalloway/sval/internal/loader"
 )
+
+var englishPrinter = message.NewPrinter(language.English)
 
 type FileType int
 
@@ -247,25 +252,31 @@ func buildValidationErrors(doc *loader.Document, err error) []ValidationError {
 		return []ValidationError{{Message: err.Error()}}
 	}
 
-	basic := ve.BasicOutput()
 	var result []ValidationError
-	for _, unit := range basic.Errors {
-		if unit.Error == nil {
-			continue
+	walkValidationError(doc, ve, &result)
+	return result
+}
+
+// walkValidationError recurses the ValidationError cause tree, emitting one
+// ValidationError per leaf-like node. Pass-through nodes (*kind.Schema,
+// *kind.Reference, *kind.Group) are transparent - we recurse into their
+// causes. All other kinds are meaningful and get emitted directly.
+func walkValidationError(doc *loader.Document, ve *jsonschema.ValidationError, out *[]ValidationError) {
+	switch ve.ErrorKind.(type) {
+	case *kind.Schema, *kind.Reference, *kind.Group:
+		for _, cause := range ve.Causes {
+			walkValidationError(doc, cause, out)
 		}
-		ptr := unit.InstanceLocation
-		if ptr == "" {
-			ptr = "/"
-		}
+	default:
+		ptr := "/" + strings.Join(ve.InstanceLocation, "/")
 		line, column := pointerPosition(doc, ptr)
-		result = append(result, ValidationError{
+		*out = append(*out, ValidationError{
 			Field:   ptr,
 			Line:    line,
 			Column:  column,
-			Message: unit.Error.String(),
+			Message: ve.ErrorKind.LocalizedString(englishPrinter),
 		})
 	}
-	return result
 }
 
 func pointerPosition(doc *loader.Document, pointer string) (int, int) {

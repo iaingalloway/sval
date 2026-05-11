@@ -254,7 +254,7 @@ func TestValidatePath(t *testing.T) {
 	})
 
 	t.Run("schema with local $ref resolves", func(t *testing.T) {
-		// with-ref.json contains {"$ref": "valid-object.json"} — tests local $ref resolution.
+		// with-ref.json contains {"$ref": "valid-object.json"} - tests local $ref resolution.
 		schemaPath := fixturePath("schema", "with-ref.json")
 		if err := ValidatePath(fixturePath("yaml", "good.yaml"), schemaPath); err != nil {
 			t.Fatalf("expected $ref to resolve and validation to pass, got: %v", err)
@@ -404,6 +404,45 @@ func TestValidatePathResult(t *testing.T) {
 			t.Fatalf("expected nil result on system error, got: %+v", result)
 		}
 	})
+}
+
+func TestOneOfErrorMessage(t *testing.T) {
+	c := jsonschema.NewCompiler()
+	if err := c.AddResource("https://sval.test/oneof-schema", map[string]any{
+		"oneOf": []any{
+			map[string]any{
+				"type":     "object",
+				"required": []any{"at"},
+				"properties": map[string]any{
+					"at": map[string]any{"type": "string"},
+				},
+			},
+			map[string]any{
+				"type":     "object",
+				"required": []any{"on"},
+				"properties": map[string]any{
+					"on": map[string]any{"type": "string"},
+				},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("AddResource: %v", err)
+	}
+	schema, err := c.Compile("https://sval.test/oneof-schema")
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+
+	dir := t.TempDir()
+	path := writeTempFile(t, dir, "bad.yaml", "at: 42\nnotes: something\n")
+
+	verr := ValidateFile(path, schema)
+	if verr == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+	if !strings.Contains(verr.Error(), "'oneOf' failed, none matched") {
+		t.Errorf("expected oneOf message, got: %v", verr)
+	}
 }
 
 func newTestSchema(t *testing.T) *jsonschema.Schema {
