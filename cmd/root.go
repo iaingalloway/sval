@@ -35,5 +35,5 @@ func newRootCmd(version string) *cobra.Command {
 }
 
 func initVersionFlag(flags *pflag.FlagSet, showVersion *bool) {
-	flags.BoolVarP(showVersion, "version", "v", false, "print version")
+	flags.BoolVar(showVersion, "version", false, "print version")
 }
