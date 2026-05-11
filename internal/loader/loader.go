@@ -306,12 +306,6 @@ func parseFrontmatterSectionWithIndex(section frontmatterSection, docIndex int) 
 	return docs, nil
 }
 
-// Backward compatible wrapper
-func parseFrontmatterAnyFormat(content []byte, startLine int) ([]*Document, error) {
-	section := frontmatterSection{Data: content, StartLine: startLine, Marker: "---", Format: "yaml"}
-	return parseFrontmatterSectionWithIndex(section, 1)
-}
-
 func parseYAMLDocumentsWithIndex(content []byte, startLine int, docIndex int) ([]*Document, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(content))
 	docs := make([]*Document, 0, 1)
@@ -342,17 +336,6 @@ func parseYAMLDocumentsWithIndex(content []byte, startLine int, docIndex int) ([
 		return []*Document{{}}, nil
 	}
 	return docs, nil
-}
-
-func parseYAMLDocument(content []byte, startLine int) (*Document, error) {
-	docs, err := parseYAMLDocuments(content, startLine)
-	if err != nil {
-		return nil, err
-	}
-	if len(docs) == 1 {
-		return docs[0], nil
-	}
-	return &Document{Data: documentsDataSlice(docs)}, nil
 }
 
 func parseYAMLDocuments(content []byte, startLine int) ([]*Document, error) {
