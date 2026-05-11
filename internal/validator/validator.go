@@ -150,11 +150,10 @@ func (l *httpURLLoader) Load(url string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		_ = resp.Body.Close()
 		return nil, fmt.Errorf("%s returned status code %d", url, resp.StatusCode)
 	}
-	defer resp.Body.Close()
 	return jsonschema.UnmarshalJSON(resp.Body)
 }
 
