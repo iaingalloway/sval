@@ -19,10 +19,18 @@ Download a binary for your platform from the [releases page](https://github.com/
 go install github.com/iaingalloway/sval@latest
 ```
 
-A Docker image is also available:
+Also available as a Docker image:
 
 ```bash
 docker run --rm -v "$(pwd):/work" -w /work ghcr.io/iaingalloway/sval:latest validate --config .svalconfig.yaml
+```
+
+And as a [devcontainer feature](https://github.com/iaingalloway/features):
+
+```json
+    "ghcr.io/iaingalloway/features/sval:1.0.0": {
+      "version": "1.0.0"
+    }
 ```
 
 ## Scope
