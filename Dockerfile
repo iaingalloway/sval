@@ -1,4 +1,4 @@
-FROM ghcr.io/iaingalloway/devcontainers/go:1.5.24-go1.26.0 AS build
+FROM ghcr.io/iaingalloway/devcontainers/go:1.5.57 AS build
 
 USER root
 ENV GOPATH=/go
